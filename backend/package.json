@@ -1,0 +1,33 @@
+{
+  "name": "backend",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "eslint src"
+  },
+  "prisma": {
+    "schema": "src/prisma/schema.prisma",
+    "seed": "tsx src/prisma/seed.ts"
+  },
+  "dependencies": {
+    "@note-app/shared": "workspace:*",
+    "@prisma/client": "6.19.3",
+    "argon2": "0.44.0",
+    "express": "5.2.1",
+    "jsonwebtoken": "9.0.3",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/jsonwebtoken": "9.0.10",
+    "@types/supertest": "7.2.0",
+    "prisma": "6.19.3",
+    "supertest": "7.2.2",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  }
+}
