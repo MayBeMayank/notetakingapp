@@ -71,10 +71,10 @@ chore(db): add GIN index on notes.search_vector
 ### Branch Naming
 
 ```
-<type>/<scope>-<short-slug>
+<type>/<ticket>-<short-slug-name>
 ```
 
-Examples: `feat/notes-soft-delete`, `fix/auth-otp-cap`, `chore/db-fts-index`
+Examples: `feat/AB-1004-notes-soft-delete`, `fix/AB-1234-auth-otp-cap`, `chore/AB-1111-db-fts-index`
 
 - Branches off `main` only.
 - Delete branch after merge.
