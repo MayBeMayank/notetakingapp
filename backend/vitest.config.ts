@@ -1,17 +1,13 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
     passWithNoTests: true,
     environment: 'node',
+    setupFiles: ['./tests/setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
     },
   },
-  resolve: {
-    alias: {
-      vitest: 'vitest/node',
-    },
-  },
-});
+})

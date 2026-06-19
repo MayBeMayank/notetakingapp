@@ -236,9 +236,11 @@ Query params `page` (default 1, min 1) and `limit` (default 20, min 1, max 100).
 | POST | `/register` | `{ email, password }` | 201 `{ user }` | 400, 422 (dup email) | 3.1 |
 | POST | `/login` | `{ email, password }` | 200 `{ accessToken, refreshToken, user }` | 400, 401 | 3.2 |
 | POST | `/refresh` | `{ refreshToken }` | 200 `{ accessToken, refreshToken }` | 401 | 3.3.1–2 |
-| POST | `/logout` | `{ refreshToken }` | 204 | 401 | 3.3.3 |
+| POST | `/logout` ¹ | `{ refreshToken }` | 204 | 401 | 3.3.3 |
 | POST | `/forgot-password` | `{ email }` | 200 `{ ok: true }` (always) | 400 | 3.4.1–3 |
 | POST | `/reset-password` | `{ email, otp, newPassword }` | 200 `{ ok: true }` | 400, 422 (bad/expired OTP) | 3.4.4–6 |
+
+> ¹ `/logout` requires a valid access token (`Authorization: Bearer <jwt>`). The service verifies that the presented `refreshToken` was issued to the authenticated user — mismatched ownership returns 401.
 
 ### 6.2 Public share — `/api/public` (no auth)
 
