@@ -9,7 +9,7 @@
 
 *Establishes the workspace skeleton and `packages/shared` first — everything else depends on both.*
 
-- [ ] 1.1  Look up and record exact patch versions (no `^`/`~`) for every
+- [x] 1.1  Look up and record exact patch versions (no `^`/`~`) for every
            dependency in SDS §2 from the live npm registry before writing any
            `package.json`: Express 5, React 19, Vite, TanStack Query v5, Zustand,
            TipTap v2, shadcn/ui deps (clsx, tailwind-merge), Prisma 6,
@@ -19,62 +19,62 @@
            Husky 9, @commitlint/cli + config-conventional. Record in a scratch
            file so all subsequent tasks can reference them.
 
-- [ ] 1.2  Create `pnpm-workspace.yaml` at repo root declaring packages
+- [x] 1.2  Create `pnpm-workspace.yaml` at repo root declaring packages
            `backend`, `frontend`, and `packages/shared`.
 
-- [ ] 1.3  Create root `package.json` (private, no dist) with scripts
+- [x] 1.3  Create root `package.json` (private, no dist) with scripts
            `build: "pnpm -r build"`, `test: "pnpm -r test"`, `lint: "eslint ."`;
            devDependencies: ESLint 9, typescript-eslint plugin + parser,
            TypeScript, Husky, @commitlint/cli, @commitlint/config-conventional
            — all at exact pinned versions from 1.1.
 
-- [ ] 1.4  Create `tsconfig.base.json` at root with `strict: true`,
+- [x] 1.4  Create `tsconfig.base.json` at root with `strict: true`,
            `noImplicitAny: true`, `esModuleInterop: true`,
            `forceConsistentCasingInFileNames: true`, `skipLibCheck: true`,
            `declaration: true`, `declarationMap: true`, `sourceMap: true`.
            No `target`, `module`, or `outDir` here — those are per-package.
 
-- [ ] 1.5  Create `eslint.config.js` (ESLint 9 flat config) using
+- [x] 1.5  Create `eslint.config.js` (ESLint 9 flat config) using
            `typescript-eslint`'s `tseslint.config()` with
            `tseslint.configs.recommended` and an `ignores` entry for
            `**/dist/**` and `**/node_modules/**`.
 
-- [ ] 1.6  Create `commitlint.config.cjs` enforcing:
+- [x] 1.6  Create `commitlint.config.cjs` enforcing:
            types `feat|fix|refactor|test|chore|docs`;
            scopes `auth|notes|tags|search|share|versions|shared|db|infra`;
            `scope-empty: [2, 'never']` (scope always required).
 
-- [ ] 1.7  Run `pnpm exec husky init` (or manually create `.husky/pre-commit`)
+- [x] 1.7  Run `pnpm exec husky init` (or manually create `.husky/pre-commit`)
            so Husky is installed; set `prepare` script in root `package.json`
            to `husky`.
 
-- [ ] 1.8  Create `.husky/pre-commit` containing `pnpm -w lint`.
+- [x] 1.8  Create `.husky/pre-commit` containing `pnpm -w lint`.
 
-- [ ] 1.9  Create `.husky/commit-msg` containing
+- [x] 1.9  Create `.husky/commit-msg` containing
            `npx --no -- commitlint --edit "$1"`.
 
-- [ ] 1.10 Create `.gitignore` covering `node_modules/`, `dist/`, `.env`,
+- [x] 1.10 Create `.gitignore` covering `node_modules/`, `dist/`, `.env`,
            `.env.test`, `*.tsbuildinfo`, `.DS_Store`.
 
-- [ ] 1.11 Create `packages/shared/package.json`:
+- [x] 1.11 Create `packages/shared/package.json`:
            name `@note-app/shared`, `"type": "module"`,
            `main: "./dist/index.js"`, `types: "./dist/index.d.ts"`,
            full `exports` map (`.`, `./schemas`, `./schemas/*`, `./types`),
            scripts `build: "tsc"` and `lint: "eslint src"`,
            production dependency: `zod` at exact pinned version from 1.1 only.
 
-- [ ] 1.12 Create `packages/shared/tsconfig.json` extending
+- [x] 1.12 Create `packages/shared/tsconfig.json` extending
            `../../tsconfig.base.json`; `target: "ES2022"`,
            `module: "NodeNext"`, `moduleResolution: "NodeNext"`,
            `outDir: "dist"`, `rootDir: "src"`.
 
-- [ ] 1.13 Create `packages/shared/src/schemas/index.ts` — empty barrel
+- [x] 1.13 Create `packages/shared/src/schemas/index.ts` — empty barrel
            (`export {}`).
 
-- [ ] 1.14 Create `packages/shared/src/types/index.ts` — empty barrel
+- [x] 1.14 Create `packages/shared/src/types/index.ts` — empty barrel
            (`export {}`).
 
-- [ ] 1.15 Create `packages/shared/src/index.ts` re-exporting from
+- [x] 1.15 Create `packages/shared/src/index.ts` re-exporting from
            `./schemas/index.js` and `./types/index.js` (`.js` extension
            required — NodeNext ESM).
 
@@ -98,7 +98,7 @@ All three commands must exit 0 before starting Phase 2.
 
 ### 2A — Backend Skeleton [PARALLEL]
 
-- [ ] 2A.1 Create `backend/package.json`:
+- [x] 2A.1 Create `backend/package.json`:
            name `"backend"`, `"type": "module"`, scripts
            `dev: "tsx src/server.ts"`, `build: "tsc"`,
            `test: "vitest run"`, `lint: "eslint src"`;
@@ -110,82 +110,82 @@ All three commands must exit 0 before starting Phase 2.
            `@types/jsonwebtoken`, `@types/supertest`, `prisma`, `supertest`,
            `tsx`, `typescript`, `vitest`.
 
-- [ ] 2A.2 Create `backend/tsconfig.json` extending `../tsconfig.base.json`;
+- [x] 2A.2 Create `backend/tsconfig.json` extending `../tsconfig.base.json`;
            `target: "ES2022"`, `module: "NodeNext"`,
            `moduleResolution: "NodeNext"`, `outDir: "dist"`, `rootDir: "src"`;
            `include: ["src/**/*"]`, `exclude: ["node_modules", "dist"]`.
 
-- [ ] 2A.3 Create empty directory stubs with `.gitkeep`:
+- [x] 2A.3 Create empty directory stubs with `.gitkeep`:
            `backend/src/routes/`, `backend/src/controllers/`,
            `backend/src/services/`, `backend/src/repositories/`,
            `backend/src/middleware/`, `backend/src/lib/`.
 
-- [ ] 2A.4 Create `backend/src/app.ts`: imports `express`, creates app,
+- [x] 2A.4 Create `backend/src/app.ts`: imports `express`, creates app,
            wires `express.json()`, exports `app`.
 
-- [ ] 2A.5 Create `backend/src/server.ts`: imports `app` from `./app.js`
+- [x] 2A.5 Create `backend/src/server.ts`: imports `app` from `./app.js`
            (`.js` required — NodeNext), reads `PORT` from `process.env`,
            calls `app.listen(port)` and logs the bound address.
 
-- [ ] 2A.6 Create `backend/.env.example` with placeholder entries:
+- [x] 2A.6 Create `backend/.env.example` with placeholder entries:
            `DATABASE_URL=`, `JWT_SECRET=`, `ACCESS_TOKEN_TTL=15m`,
            `REFRESH_TOKEN_TTL=7d`, `OTP_TTL=10m`, `PORT=3000`.
 
-- [ ] 2A.7 Create `backend/.env.test.example` with placeholder:
+- [x] 2A.7 Create `backend/.env.test.example` with placeholder:
            `DATABASE_URL=postgresql://user:pass@localhost:5432/note_app_test`.
 
 ### 2B — Prisma Schema [PARALLEL]
 
-- [ ] 2B.1 Create `backend/src/prisma/schema.prisma` with:
+- [x] 2B.1 Create `backend/src/prisma/schema.prisma` with:
            `generator client { provider = "prisma-client-js" }`;
            `datasource db { provider = "postgresql"; url = env("DATABASE_URL") }`.
 
-- [ ] 2B.2 Add `User` model: `id` (cuid PK), `email` (String, unique),
+- [x] 2B.2 Add `User` model: `id` (cuid PK), `email` (String, unique),
            `passwordHash` (String), `createdAt`, `updatedAt`; relations to
            RefreshToken, PasswordResetOtp, Note, Tag.
 
-- [ ] 2B.3 Add `RefreshToken` model: `id` (cuid PK), `userId` (FK → User
+- [x] 2B.3 Add `RefreshToken` model: `id` (cuid PK), `userId` (FK → User
            onDelete Cascade), `tokenHash` (String), `expiresAt` (DateTime),
            `revokedAt` (DateTime?), `createdAt`; `@@index([userId])`,
            `@@index([tokenHash])`.
 
-- [ ] 2B.4 Add `PasswordResetOtp` model: `id` (cuid PK), `userId` (FK → User
+- [x] 2B.4 Add `PasswordResetOtp` model: `id` (cuid PK), `userId` (FK → User
            onDelete Cascade), `codeHash` (String), `expiresAt` (DateTime),
            `attempts` (Int default 0), `consumedAt` (DateTime?), `createdAt`;
            `@@index([userId])`.
 
-- [ ] 2B.5 Add `Note` model: `id` (cuid PK), `userId` (FK → User onDelete
+- [x] 2B.5 Add `Note` model: `id` (cuid PK), `userId` (FK → User onDelete
            Cascade), `title` (String default ""), `contentJson` (Json),
            `contentText` (String default ""), `createdAt`, `updatedAt`,
            `deletedAt` (DateTime?); relations to Tag (via NoteTag), NoteVersion,
            ShareLink; `@@index([userId, deletedAt, updatedAt])`.
 
-- [ ] 2B.6 Add `Tag` model: `id` (cuid PK), `userId` (FK → User onDelete
+- [x] 2B.6 Add `Tag` model: `id` (cuid PK), `userId` (FK → User onDelete
            Cascade), `name` (String), `color` (String), `createdAt`,
            `updatedAt`; relation to Note (via NoteTag); `@@unique([userId, name])`.
 
-- [ ] 2B.7 Add `NoteTag` model: composite PK `@@id([noteId, tagId])`,
+- [x] 2B.7 Add `NoteTag` model: composite PK `@@id([noteId, tagId])`,
            `noteId` (FK → Note onDelete Cascade),
            `tagId` (FK → Tag onDelete Cascade); `@@index([tagId])`.
 
-- [ ] 2B.8 Add `NoteVersion` model: `id` (cuid PK), `noteId` (FK → Note
+- [x] 2B.8 Add `NoteVersion` model: `id` (cuid PK), `noteId` (FK → Note
            onDelete Cascade), `versionNumber` (Int), `title` (String),
            `contentJson` (Json), `contentText` (String), `createdAt`;
            `@@unique([noteId, versionNumber])`, `@@index([noteId, createdAt])`.
 
-- [ ] 2B.9 Add `ShareLink` model: `id` (cuid PK), `noteId` (FK → Note
+- [x] 2B.9 Add `ShareLink` model: `id` (cuid PK), `noteId` (FK → Note
            onDelete Cascade), `token` (String unique), `expiresAt` (DateTime?),
            `revokedAt` (DateTime?), `viewCount` (Int default 0), `createdAt`;
            `@@index([noteId])`.
 
-- [ ] 2B.10 Create `backend/src/prisma/seed.ts`: imports `PrismaClient`,
+- [x] 2B.10 Create `backend/src/prisma/seed.ts`: imports `PrismaClient`,
             defines async `main(): Promise<void>` (empty body), calls `main()`
             with `.catch(console.error).finally(() => prisma.$disconnect())`.
             Inserts no data.
 
 ### 2C — Frontend Skeleton [PARALLEL]
 
-- [ ] 2C.1 Create `frontend/package.json`:
+- [x] 2C.1 Create `frontend/package.json`:
            name `"frontend"`, `"type": "module"`, scripts
            `dev: "vite"`, `build: "vite build"` (**not** `tsc` — `noEmit`
            would produce no output), `test: "vitest run"`,
@@ -198,31 +198,31 @@ All three commands must exit 0 before starting Phase 2.
            `typescript`, `vitest`, `@playwright/test`, `@types/react`,
            `@types/react-dom`.
 
-- [ ] 2C.2 Create `frontend/tsconfig.json` extending `../tsconfig.base.json`;
+- [x] 2C.2 Create `frontend/tsconfig.json` extending `../tsconfig.base.json`;
            `target: "ES2020"`, `module: "ESNext"`,
            `moduleResolution: "bundler"`, `lib: ["ES2020","DOM","DOM.Iterable"]`,
            `jsx: "react-jsx"`, `noEmit: true`,
            `allowImportingTsExtensions: true`.
 
-- [ ] 2C.3 Create `frontend/vite.config.ts` with `@vitejs/plugin-react` plugin
+- [x] 2C.3 Create `frontend/vite.config.ts` with `@vitejs/plugin-react` plugin
            and resolve alias `"@"` → `"./src"`.
 
-- [ ] 2C.4 Create `frontend/index.html` — standard Vite entry with
+- [x] 2C.4 Create `frontend/index.html` — standard Vite entry with
            `<div id="root"></div>` and `<script type="module" src="/src/main.tsx">`.
 
-- [ ] 2C.5 Create `frontend/src/main.tsx` — mounts `<App />` into `#root`
+- [x] 2C.5 Create `frontend/src/main.tsx` — mounts `<App />` into `#root`
            using `ReactDOM.createRoot`.
 
-- [ ] 2C.6 Create `frontend/src/App.tsx` — minimal placeholder:
+- [x] 2C.6 Create `frontend/src/App.tsx` — minimal placeholder:
            `export default function App() { return <div>Note App</div> }`.
 
-- [ ] 2C.7 Create `frontend/src/lib/utils.ts` — `cn()` helper using
+- [x] 2C.7 Create `frontend/src/lib/utils.ts` — `cn()` helper using
            `clsx` + `tailwind-merge`.
 
-- [ ] 2C.8 Create `frontend/components.json` — shadcn/ui config stub
+- [x] 2C.8 Create `frontend/components.json` — shadcn/ui config stub
            (style, rsc, tsx, tailwind, aliases).
 
-- [ ] 2C.9 Create empty directory stubs with `.gitkeep`:
+- [x] 2C.9 Create empty directory stubs with `.gitkeep`:
            `frontend/src/pages/`,
            `frontend/src/features/auth/`,
            `frontend/src/features/notes/`,
@@ -254,33 +254,33 @@ All commands must exit 0 before starting Phase 3.
 
 *Wire the DB, run the migration, verify inter-package resolution, confirm hooks.*
 
-- [ ] 3.1  Copy `backend/.env.example` → `backend/.env`; populate
+- [x] 3.1  Copy `backend/.env.example` → `backend/.env`; populate
            `DATABASE_URL` with your local PostgreSQL 16 connection string and
            set `JWT_SECRET` to any non-empty value.
 
-- [ ] 3.2  Run the initial Prisma migration:
+- [x] 3.2  Run the initial Prisma migration:
            `pnpm --filter backend exec prisma migrate dev --name init`
            Confirm all 7 tables are created without error.
 
-- [ ] 3.3  Run the seed skeleton:
+- [x] 3.3  Run the seed skeleton:
            `pnpm --filter backend exec prisma db seed`
            Confirm it exits 0 and no rows are inserted.
 
-- [ ] 3.4  Verify `@note-app/shared` barrel import resolves in backend:
+- [x] 3.4  Verify `@note-app/shared` barrel import resolves in backend:
            temporarily add `import {} from '@note-app/shared'` to
            `backend/src/app.ts`, run `pnpm --filter backend build`,
            confirm 0 errors, then remove the temporary import.
 
-- [ ] 3.5  Verify `@note-app/shared` barrel import resolves in frontend:
+- [x] 3.5  Verify `@note-app/shared` barrel import resolves in frontend:
            temporarily add `import {} from '@note-app/shared'` to
            `frontend/src/App.tsx`, run `pnpm --filter frontend build`,
            confirm 0 errors, then remove the temporary import.
 
-- [ ] 3.6  Verify Husky hooks fire: run
+- [x] 3.6  Verify Husky hooks fire: run
            `git commit --allow-empty -m "chore(infra): verify hooks"` and
            confirm the pre-commit lint step runs (check terminal output).
 
-- [ ] 3.7  Start the backend dev server (`pnpm --filter backend dev`) and
+- [x] 3.7  Start the backend dev server (`pnpm --filter backend dev`) and
            confirm it binds to PORT 3000 without throwing.
 
 ---
@@ -301,115 +301,115 @@ not Vitest tests (no feature logic exists yet to unit-test).*
 
 ### monorepo-scaffold spec
 
-- [ ] T-01  **No range specifiers** — inspect every `package.json` in the
+- [x] T-01  **No range specifiers** — inspect every `package.json` in the
             workspace; confirm zero entries with a leading `^` or `~`.
 
-- [ ] T-02  **Versions match SDS §2 major constraints** — spot-check installed
+- [x] T-02  **Versions match SDS §2 major constraints** — spot-check installed
             versions: Node 22, React 19.x, Express 5.x, Vite 6.x,
             TanStack Query 5.x, Prisma 6.x, Vitest 3.x, Playwright 1.x.
 
-- [ ] T-03  **Workspace packages recognized** — `pnpm install` exits 0 with all
+- [x] T-03  **Workspace packages recognized** — `pnpm install` exits 0 with all
             three packages resolving their dependencies.
 
-- [ ] T-04  **Root script delegates to all packages** — `pnpm -w build` exits 0
+- [x] T-04  **Root script delegates to all packages** — `pnpm -w build` exits 0
             and build output for all three packages appears in order (shared first).
 
-- [ ] T-05  **TypeScript strict — backend** — `pnpm --filter backend build`
+- [x] T-05  **TypeScript strict — backend** — `pnpm --filter backend build`
             exits 0 with no implicit-any errors.
 
-- [ ] T-06  **TypeScript strict — frontend** — `pnpm --filter frontend build`
+- [x] T-06  **TypeScript strict — frontend** — `pnpm --filter frontend build`
             exits 0 with no implicit-any errors.
 
-- [ ] T-07  **TypeScript strict — shared** — `pnpm --filter @note-app/shared build`
+- [x] T-07  **TypeScript strict — shared** — `pnpm --filter @note-app/shared build`
             exits 0.
 
-- [ ] T-08  **Lint passes on clean scaffold** — `pnpm -w lint` exits 0 with
+- [x] T-08  **Lint passes on clean scaffold** — `pnpm -w lint` exits 0 with
             zero errors and zero warnings.
 
-- [ ] T-09  **Implicit-any caught by lint** — temporarily create a `.ts` file
+- [x] T-09  **Implicit-any caught by lint** — temporarily create a `.ts` file
             with an untyped parameter (e.g. `function f(x) {}`), run
             `pnpm -w lint`, confirm non-zero exit with an error, then delete
             the file.
 
-- [ ] T-10  **Conforming commit message accepted** —
+- [x] T-10  **Conforming commit message accepted** —
             `echo "feat(auth): add register endpoint" | npx commitlint`
             exits 0.
 
-- [ ] T-11  **Non-conforming message rejected** —
+- [x] T-11  **Non-conforming message rejected** —
             `echo "added some stuff" | npx commitlint` exits non-zero.
 
-- [ ] T-12  **Unknown scope rejected** —
+- [x] T-12  **Unknown scope rejected** —
             `echo "feat(payments): add checkout" | npx commitlint` exits
             non-zero.
 
-- [ ] T-13  **Backend starts without crashing** — `pnpm --filter backend dev`
+- [x] T-13  **Backend starts without crashing** — `pnpm --filter backend dev`
             binds to PORT 3000 and logs the address; no unhandled exception
             on startup.
 
-- [ ] T-14  **Backend layer directories exist** — confirm
+- [x] T-14  **Backend layer directories exist** — confirm
             `backend/src/routes/`, `controllers/`, `services/`,
             `repositories/`, `middleware/`, `lib/` all present.
 
-- [ ] T-15  **`.env.example` keys present** — read `backend/.env.example`;
+- [x] T-15  **`.env.example` keys present** — read `backend/.env.example`;
             confirm keys `DATABASE_URL`, `JWT_SECRET`, `ACCESS_TOKEN_TTL`,
             `REFRESH_TOKEN_TTL`, `OTP_TTL`, `PORT` all present.
 
-- [ ] T-16  **`.env.test.example` present** — read `backend/.env.test.example`;
+- [x] T-16  **`.env.test.example` present** — read `backend/.env.test.example`;
             confirm `DATABASE_URL` placeholder entry exists.
 
-- [ ] T-17  **Frontend builds without errors** — `pnpm --filter frontend build`
+- [x] T-17  **Frontend builds without errors** — `pnpm --filter frontend build`
             exits 0 with zero TypeScript errors and zero build warnings.
 
-- [ ] T-18  **Feature directory stubs exist** — confirm
+- [x] T-18  **Feature directory stubs exist** — confirm
             `frontend/src/features/auth/`, `notes/`, `tags/`, `search/`,
             `share/`, `versions/` all present.
 
-- [ ] T-19  **Component/state directories exist** — confirm
+- [x] T-19  **Component/state directories exist** — confirm
             `frontend/src/pages/`, `components/`, `api/`, `stores/` present.
 
 ### prisma-schema spec
 
-- [ ] T-20  **`prisma generate` succeeds** —
+- [x] T-20  **`prisma generate` succeeds** —
             `pnpm --filter backend exec prisma generate` exits 0 and the
             Prisma client is importable.
 
-- [ ] T-21  **All 7 tables created by migration** — after `prisma migrate dev
+- [x] T-21  **All 7 tables created by migration** — after `prisma migrate dev
             --name init`, confirm tables `User`, `RefreshToken`,
             `PasswordResetOtp`, `Note`, `Tag`, `NoteTag`, `NoteVersion`,
             `ShareLink` exist in the database (via psql or Prisma Studio).
 
-- [ ] T-22  **Cascade indexes present** — confirm `@@index([userId])` on
+- [x] T-22  **Cascade indexes present** — confirm `@@index([userId])` on
             `RefreshToken` and `PasswordResetOtp`; composite index
             `[userId, deletedAt, updatedAt]` on `Note`;
             `@@index([tagId])` on `NoteTag`;
             `@@unique([noteId, versionNumber])` + `@@index([noteId, createdAt])`
             on `NoteVersion`; `@@index([noteId])` on `ShareLink`.
 
-- [ ] T-23  **Seed exits 0 without inserting rows** —
+- [x] T-23  **Seed exits 0 without inserting rows** —
             `pnpm --filter backend exec prisma db seed` exits 0; confirm
             all tables remain empty (e.g. `SELECT COUNT(*) FROM "User"`).
 
 ### shared-package spec
 
-- [ ] T-24  **Backend resolves `@note-app/shared`** — verified by T-04
+- [x] T-24  **Backend resolves `@note-app/shared`** — verified by T-04
             (backend build); the temporary import test from 3.4 also confirms.
 
-- [ ] T-25  **Frontend resolves `@note-app/shared`** — verified by T-04
+- [x] T-25  **Frontend resolves `@note-app/shared`** — verified by T-04
             (frontend build); the temporary import test from 3.5 also confirms.
 
-- [ ] T-26  **No circular dependency** — inspect `packages/shared/package.json`;
+- [x] T-26  **No circular dependency** — inspect `packages/shared/package.json`;
             confirm `dependencies` does not reference `backend` or `frontend`.
 
-- [ ] T-27  **schemas barrel importable** — shared build (T-07) resolves
+- [x] T-27  **schemas barrel importable** — shared build (T-07) resolves
             `dist/schemas/index.js`; confirm file exists after build.
 
-- [ ] T-28  **types barrel importable** — shared build (T-07) resolves
+- [x] T-28  **types barrel importable** — shared build (T-07) resolves
             `dist/types/index.js`; confirm file exists after build.
 
-- [ ] T-29  **Empty barrels cause no build errors** — confirmed by T-07
+- [x] T-29  **Empty barrels cause no build errors** — confirmed by T-07
             (shared build exits 0 with empty barrel content).
 
-- [ ] T-30  **Zod is the only production dependency** — inspect
+- [x] T-30  **Zod is the only production dependency** — inspect
             `packages/shared/package.json`; confirm `dependencies` contains
             only `"zod"` — no `express`, `react`, `@prisma/client`, etc.
 
