@@ -7,6 +7,8 @@ import {
   LoginSchema,
   RefreshTokenSchema,
   LogoutSchema,
+  ForgotPasswordSchema,
+  ResetPasswordSchema,
 } from '@note-app/shared/schemas/auth'
 
 export const authRouter: RouterType = Router()
@@ -15,3 +17,5 @@ authRouter.post('/register', validateBody(RegisterSchema), authController.regist
 authRouter.post('/login', validateBody(LoginSchema), authController.login)
 authRouter.post('/refresh', validateBody(RefreshTokenSchema), authController.refresh)
 authRouter.post('/logout', authMiddleware, validateBody(LogoutSchema), authController.logout)
+authRouter.post('/forgot-password', validateBody(ForgotPasswordSchema), authController.forgotPassword)
+authRouter.post('/reset-password', validateBody(ResetPasswordSchema), authController.resetPassword)
