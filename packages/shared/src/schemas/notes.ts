@@ -27,9 +27,31 @@ export const UpdateNoteSchema = z
 // `z.number()` rejects NaN, so non-numeric values (e.g. ?page=abc) fail here
 // with a 400. Range/defaults are NOT enforced here — the service clamps
 // out-of-range values rather than rejecting them (SDS §5.2).
+//
+// sort/order/status are enums: an out-of-enum value is REJECTED with 400 (an
+// enum cannot be meaningfully clamped). Defaults (sort=updatedAt, order=desc,
+// status=active) are applied by the service, not here (FRS-4.5.2 / 4.4.2).
+//
+// tags is a comma-separated list of tag IDs for the OR filter (FRS-4.5.3). The
+// transform trims and drops blanks so `?tags=` / `?tags=,,` become `[]` (no
+// filter). Ownership of the IDs is resolved in the service.
 export const ListNotesQuerySchema = z.object({
   page: z.coerce.number().int().optional(),
   limit: z.coerce.number().int().optional(),
+  sort: z.enum(['updatedAt', 'createdAt', 'title']).optional(),
+  order: z.enum(['asc', 'desc']).optional(),
+  status: z.enum(['active', 'trashed']).optional(),
+  tags: z
+    .string()
+    .optional()
+    .transform((val) =>
+      val
+        ? val
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [],
+    ),
 })
 
 // ── Response schemas ─────────────────────────────────────────────────────────
@@ -60,6 +82,11 @@ export const NoteListResponseSchema = z.object({
 export type CreateNoteInput = z.infer<typeof CreateNoteSchema>
 export type UpdateNoteInput = z.infer<typeof UpdateNoteSchema>
 export type ListNotesQuery = z.infer<typeof ListNotesQuerySchema>
+// Narrowed enum members for backend use (repo options, service defaults) — derived
+// from the schema so the union is never hand-duplicated.
+export type NoteSortField = NonNullable<ListNotesQuery['sort']>
+export type NoteSortOrder = NonNullable<ListNotesQuery['order']>
+export type NoteListStatus = NonNullable<ListNotesQuery['status']>
 export type NoteResponse = z.infer<typeof NoteResponseSchema>
 export type NoteEnvelope = z.infer<typeof NoteEnvelopeSchema>
 export type NoteListResponse = z.infer<typeof NoteListResponseSchema>

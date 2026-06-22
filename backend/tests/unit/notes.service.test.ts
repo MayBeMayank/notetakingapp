@@ -208,7 +208,7 @@ describe('listNotes', () => {
   it('default page/limit (empty query {}) → calls listNotesWithCount with { skip: 0, take: 20 }, returns { data, page: 1, limit: 20, total }', async () => {
     const result = await listNotes('user-1', {})
 
-    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 0, take: 20 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', expect.objectContaining({ skip: 0, take: 20 }))
     expect(result).toMatchObject({ page: 1, limit: 20, total: 1 })
     expect(Array.isArray(result.data)).toBe(true)
   })
@@ -216,19 +216,19 @@ describe('listNotes', () => {
   it('page=0 is clamped to 1 (skip stays 0)', async () => {
     await listNotes('user-1', { page: 0 })
 
-    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 0, take: 20 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', expect.objectContaining({ skip: 0, take: 20 }))
   })
 
   it('limit=999 is clamped to 100', async () => {
     await listNotes('user-1', { limit: 999 })
 
-    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 0, take: 100 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', expect.objectContaining({ skip: 0, take: 100 }))
   })
 
   it('page=3, limit=10 → skip=20', async () => {
     await listNotes('user-1', { page: 3, limit: 10 })
 
-    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 20, take: 10 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', expect.objectContaining({ skip: 20, take: 10 }))
   })
 
   it('total comes from listNotesWithCount independently of page', async () => {
