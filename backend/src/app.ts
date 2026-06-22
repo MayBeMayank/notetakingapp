@@ -1,5 +1,6 @@
 import express, { type Express } from 'express'
 import { authRouter } from './routes/auth.routes.js'
+import { notesRouter } from './routes/notes.routes.js'
 import { authMiddleware } from './middleware/auth.middleware.js'
 import { errorMiddleware } from './middleware/error.middleware.js'
 
@@ -11,6 +12,8 @@ app.use('/api/auth', authRouter)
 
 // Auth middleware — guards all routes mounted after this point
 app.use(authMiddleware)
+
+app.use('/api/notes', notesRouter)
 
 // Central error handler — must be last
 app.use(errorMiddleware)
