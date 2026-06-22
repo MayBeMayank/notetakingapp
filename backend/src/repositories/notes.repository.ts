@@ -57,22 +57,6 @@ export async function restoreNote(userId: string, id: string): Promise<Note> {
   return prisma.note.update({ where: { id, userId }, data: { deletedAt: null } });
 }
 
-export async function listActiveNotes(
-  userId: string,
-  opts: { skip: number; take: number },
-): Promise<Note[]> {
-  return prisma.note.findMany({
-    where: { userId, deletedAt: null },
-    orderBy: { updatedAt: 'desc' },
-    skip: opts.skip,
-    take: opts.take,
-  });
-}
-
-export async function countActiveNotes(userId: string): Promise<number> {
-  return prisma.note.count({ where: { userId, deletedAt: null } });
-}
-
 export type ListNotesOptions = {
   skip: number;
   take: number;
