@@ -67,7 +67,7 @@ pnpm --filter backend test             # existing suite stays green
 
 > Integration tests require a running Postgres via `backend/.env.test` (`DATABASE_URL`). Unit tests need no DB. Coverage ≥80% on new code (DoD).
 
-- [ ] **T4.1** `[PARALLEL]` Create `backend/tests/unit/notes.service.test.ts` (mock `notes.repository` + `lib/content`):
+- [x] **T4.1** `[PARALLEL]` Create `backend/tests/unit/notes.service.test.ts` (mock `notes.repository` + `lib/content`):
   - [ ] create: blank body → empty doc + `contentText:""`; derives `contentText`; response omits `contentText`/`userId`/`deletedAt`
   - [ ] get: `null`→404 · `deletedAt`→404 · active→200 mapping
   - [ ] update: `null`→404 · `deletedAt`→`NOTE_DELETED` · partial leaves omitted field · re-derives `contentText`
@@ -75,7 +75,7 @@ pnpm --filter backend test             # existing suite stays green
   - [ ] restore: ≤30d→success · >30d→`RESTORE_WINDOW_EXPIRED` · active→`NOTE_NOT_DELETED` · `null`→404
   - [ ] list: default `page=1/limit=20`; clamp `page=0→1`, `limit=999→100`; `orderBy updatedAt desc`; `total` independent of page
 
-- [ ] **T4.2** `[PARALLEL]` Create `backend/tests/integration/notes.routes.test.ts` (Supertest, real DB; register→login→Bearer; `beforeEach` adds `prisma.note.deleteMany()`):
+- [x] **T4.2** `[PARALLEL]` Create `backend/tests/integration/notes.routes.test.ts` (Supertest, real DB; register→login→Bearer; `beforeEach` adds `prisma.note.deleteMany()`):
   - [ ] POST: 201 with title+content · 201 blank `{}` · 400 malformed `content` · 401 no token
   - [ ] GET `/`: 200 envelope shape · only caller's active notes · default sort · `?page=abc`→400 · `?page=0&limit=999`→200 clamped · empty→`{data:[],total:0}` · 401 no token
   - [ ] GET `/:id`: 200 own · 404 other-user · 404 missing · 404 deleted · **404 body has no `fields`** · 401 no token
