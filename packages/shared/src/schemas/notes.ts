@@ -12,16 +12,19 @@ export const TipTapContentSchema = z.object({ type: z.string() }).passthrough()
 export const CreateNoteSchema = z.object({
   title: z.string().max(255).optional(),
   content: TipTapContentSchema.optional(),
+  tagIds: z.array(z.string()).optional(),
 })
 
 export const UpdateNoteSchema = z
   .object({
     title: z.string().max(255).optional(),
     content: TipTapContentSchema.optional(),
+    tagIds: z.array(z.string()).optional(),
   })
-  .refine((data) => data.title !== undefined || data.content !== undefined, {
-    message: 'At least one of title or content must be provided',
-  })
+  .refine(
+    (data) => data.title !== undefined || data.content !== undefined || data.tagIds !== undefined,
+    { message: 'At least one of title, content, or tagIds must be provided' },
+  )
 
 // page/limit arrive as query strings. `z.coerce.number()` converts them and
 // `z.number()` rejects NaN, so non-numeric values (e.g. ?page=abc) fail here
@@ -40,6 +43,7 @@ export const NoteResponseSchema = z.object({
   id: z.string(),
   title: z.string(),
   content: TipTapContentSchema,
+  tagIds: z.array(z.string()),
   createdAt: z.date(),
   updatedAt: z.date(),
 })

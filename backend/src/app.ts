@@ -1,6 +1,7 @@
 import express, { type Express } from 'express'
 import { authRouter } from './routes/auth.routes.js'
 import { notesRouter } from './routes/notes.routes.js'
+import { tagsRouter } from './routes/tags.routes.js'
 import { authMiddleware } from './middleware/auth.middleware.js'
 import { errorMiddleware } from './middleware/error.middleware.js'
 
@@ -14,6 +15,7 @@ app.use('/api/auth', authRouter)
 app.use(authMiddleware)
 
 app.use('/api/notes', notesRouter)
+app.use('/api/tags', tagsRouter)
 
 // Central error handler — must be last
 app.use(errorMiddleware)

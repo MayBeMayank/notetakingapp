@@ -640,3 +640,207 @@ describe('POST /api/notes/:id/restore', () => {
     expect(res.status).toBe(401)
   })
 })
+
+// ── tagIds on notes (T4.4) ────────────────────────────────────────────────────
+
+async function createOwnedTag(token: string, name: string, color = '#3B82F6') {
+  const res = await request(app)
+    .post('/api/tags')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name, color })
+  return res.body.tag.id as string
+}
+
+describe('POST /api/notes — tagIds', () => {
+  it('201 with owned tagIds → response note.tagIds contains those ids', async () => {
+    const { token } = await registerAndLogin()
+    const tagId = await createOwnedTag(token, 'work')
+
+    const res = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Tagged', content: validContent, tagIds: [tagId] })
+
+    expect(res.status).toBe(201)
+    expect(res.body.note.tagIds).toEqual([tagId])
+  })
+
+  it('201 with no tagIds → response note.tagIds is []', async () => {
+    const { token } = await registerAndLogin()
+
+    const res = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'No tags', content: validContent })
+
+    expect(res.status).toBe(201)
+    expect(res.body.note.tagIds).toEqual([])
+  })
+
+  it('422 INVALID_TAG_IDS for a foreign or non-existent tagId — note is NOT created', async () => {
+    const { token } = await registerAndLogin()
+    const countBefore = await prisma.note.count()
+
+    const res = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Should fail', content: validContent, tagIds: ['nonexistent-tag-id'] })
+
+    expect(res.status).toBe(422)
+    expect(res.body.error.code).toBe('INVALID_TAG_IDS')
+    expect(await prisma.note.count()).toBe(countBefore)
+  })
+
+  it('duplicate tagIds in request are de-duplicated — note.tagIds lists id once', async () => {
+    const { token } = await registerAndLogin()
+    const tagId = await createOwnedTag(token, 'work')
+
+    const res = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Duped', content: validContent, tagIds: [tagId, tagId] })
+
+    expect(res.status).toBe(201)
+    expect(res.body.note.tagIds).toHaveLength(1)
+    expect(res.body.note.tagIds[0]).toBe(tagId)
+  })
+})
+
+describe('PATCH /api/notes/:id — tagIds', () => {
+  it('full-replace: { tagIds: [B] } on note tagged A,B → leaves only B', async () => {
+    const { token } = await registerAndLogin()
+    const tagA = await createOwnedTag(token, 'a')
+    const tagB = await createOwnedTag(token, 'b')
+
+    const createRes = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content: validContent, tagIds: [tagA, tagB] })
+    const noteId = createRes.body.note.id as string
+
+    const res = await request(app)
+      .patch(`/api/notes/${noteId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ tagIds: [tagB] })
+
+    expect(res.status).toBe(200)
+    expect(res.body.note.tagIds).toEqual([tagB])
+  })
+
+  it('{ tagIds: [] } detaches all tags → response note.tagIds is []', async () => {
+    const { token } = await registerAndLogin()
+    const tagId = await createOwnedTag(token, 'work')
+
+    const createRes = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content: validContent, tagIds: [tagId] })
+    const noteId = createRes.body.note.id as string
+
+    const res = await request(app)
+      .patch(`/api/notes/${noteId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ tagIds: [] })
+
+    expect(res.status).toBe(200)
+    expect(res.body.note.tagIds).toEqual([])
+  })
+
+  it('omitting tagIds leaves existing associations unchanged', async () => {
+    const { token } = await registerAndLogin()
+    const tagId = await createOwnedTag(token, 'work')
+
+    const createRes = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content: validContent, tagIds: [tagId] })
+    const noteId = createRes.body.note.id as string
+
+    const res = await request(app)
+      .patch(`/api/notes/${noteId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'New Title' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.note.tagIds).toContain(tagId)
+  })
+
+  it('422 INVALID_TAG_IDS for foreign tagId — existing associations unchanged', async () => {
+    const { token } = await registerAndLogin()
+    const tagId = await createOwnedTag(token, 'work')
+
+    const createRes = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content: validContent, tagIds: [tagId] })
+    const noteId = createRes.body.note.id as string
+
+    const res = await request(app)
+      .patch(`/api/notes/${noteId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ tagIds: ['foreign-tag-id'] })
+
+    expect(res.status).toBe(422)
+    expect(res.body.error.code).toBe('INVALID_TAG_IDS')
+
+    // Verify existing associations unchanged
+    const noteCheck = await request(app)
+      .get(`/api/notes/${noteId}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(noteCheck.body.note.tagIds).toContain(tagId)
+  })
+})
+
+describe('note responses always include tagIds', () => {
+  it('GET /api/notes/:id includes tagIds', async () => {
+    const { token } = await registerAndLogin()
+    const tagId = await createOwnedTag(token, 'work')
+
+    const createRes = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content: validContent, tagIds: [tagId] })
+    const noteId = createRes.body.note.id as string
+
+    const res = await request(app)
+      .get(`/api/notes/${noteId}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.note.tagIds).toEqual([tagId])
+  })
+
+  it('GET /api/notes list includes tagIds on each item', async () => {
+    const { token } = await registerAndLogin()
+    const tagId = await createOwnedTag(token, 'work')
+
+    await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content: validContent, tagIds: [tagId] })
+
+    const res = await request(app)
+      .get('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data[0].tagIds).toEqual([tagId])
+  })
+
+  it('note created without tags has tagIds: [] in all responses', async () => {
+    const { token } = await registerAndLogin()
+
+    const createRes = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'No tags', content: validContent })
+    const noteId = createRes.body.note.id
+
+    expect(createRes.body.note.tagIds).toEqual([])
+
+    const getRes = await request(app)
+      .get(`/api/notes/${noteId}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(getRes.body.note.tagIds).toEqual([])
+  })
+})

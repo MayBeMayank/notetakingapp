@@ -2,13 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NotFoundError, ConflictError } from '../../src/lib/errors.js'
 
 vi.mock('../../src/repositories/notes.repository.js')
+vi.mock('../../src/repositories/tags.repository.js')
 vi.mock('../../src/lib/content.js')
 
 import * as notesRepo from '../../src/repositories/notes.repository.js'
+import * as tagsRepo from '../../src/repositories/tags.repository.js'
 import * as contentLib from '../../src/lib/content.js'
 import { createNote, getNoteById, updateNote, deleteNote, restoreNote, listNotes } from '../../src/services/notes.service.js'
 
 const mockedRepo = vi.mocked(notesRepo)
+const mockedTagsRepo = vi.mocked(tagsRepo)
 const mockedContent = vi.mocked(contentLib)
 
 const fakeNote = {
@@ -20,6 +23,7 @@ const fakeNote = {
   createdAt: new Date('2024-01-01T00:00:00.000Z'),
   updatedAt: new Date('2024-01-01T00:00:00.000Z'),
   deletedAt: null,
+  tags: [] as { tagId: string }[],
 }
 
 beforeEach(() => {
@@ -31,6 +35,7 @@ beforeEach(() => {
   mockedRepo.softDeleteNote.mockResolvedValue(fakeNote)
   mockedRepo.restoreNote.mockResolvedValue(fakeNote)
   mockedRepo.listNotesWithCount.mockResolvedValue([[fakeNote], 1])
+  mockedTagsRepo.countOwned.mockResolvedValue(0)
 })
 
 // ── createNote ────────────────────────────────────────────────────────────────
@@ -249,5 +254,84 @@ describe('listNotes', () => {
 
     expect(result.data[0].id).toBe('note-new')
     expect(result.data[1].id).toBe('note-old')
+  })
+})
+
+// ── tagIds (T4.3) ─────────────────────────────────────────────────────────────
+
+describe('tagIds — createNote', () => {
+  it('no tagIds in input → countOwned not called, createNote called without tagIds', async () => {
+    await createNote('user-1', { title: 'No tags' })
+
+    expect(mockedTagsRepo.countOwned).not.toHaveBeenCalled()
+    const callArgs = mockedRepo.createNote.mock.calls[0][0]
+    expect(callArgs.tagIds).toBeUndefined()
+  })
+
+  it('valid owned tagIds → de-duped, countOwned checked, passed to repo', async () => {
+    mockedTagsRepo.countOwned.mockResolvedValue(2)
+
+    await createNote('user-1', { tagIds: ['tag-a', 'tag-b', 'tag-a'] })
+
+    expect(mockedTagsRepo.countOwned).toHaveBeenCalledWith('user-1', ['tag-a', 'tag-b'])
+    const callArgs = mockedRepo.createNote.mock.calls[0][0]
+    expect(callArgs.tagIds).toEqual(['tag-a', 'tag-b'])
+  })
+
+  it('foreign or unknown tagId (countOwned < unique len) → throws INVALID_TAG_IDS (422), repo.createNote not called', async () => {
+    mockedTagsRepo.countOwned.mockResolvedValue(0)
+
+    await expect(createNote('user-1', { tagIds: ['foreign-tag'] })).rejects.toMatchObject({
+      code: 'INVALID_TAG_IDS',
+      statusCode: 422,
+    })
+    expect(mockedRepo.createNote).not.toHaveBeenCalled()
+  })
+})
+
+describe('tagIds — updateNote', () => {
+  it('tagIds omitted → countOwned not called, repo.updateNote called without tagIds', async () => {
+    await updateNote('user-1', 'note-1', { title: 'Updated' })
+
+    expect(mockedTagsRepo.countOwned).not.toHaveBeenCalled()
+    const callArgs = mockedRepo.updateNote.mock.calls[0][2]
+    expect(callArgs.tagIds).toBeUndefined()
+  })
+
+  it('tagIds: [] → assertOwnedTags returns [], repo.updateNote called with tagIds: [] (detach-all)', async () => {
+    await updateNote('user-1', 'note-1', { tagIds: [] })
+
+    expect(mockedTagsRepo.countOwned).not.toHaveBeenCalled()
+    const callArgs = mockedRepo.updateNote.mock.calls[0][2]
+    expect(callArgs.tagIds).toEqual([])
+  })
+
+  it('foreign tagId in update → throws INVALID_TAG_IDS, repo.updateNote not called', async () => {
+    mockedTagsRepo.countOwned.mockResolvedValue(0)
+
+    await expect(updateNote('user-1', 'note-1', { tagIds: ['foreign'] })).rejects.toMatchObject({
+      code: 'INVALID_TAG_IDS',
+      statusCode: 422,
+    })
+    expect(mockedRepo.updateNote).not.toHaveBeenCalled()
+  })
+})
+
+describe('tagIds — toNoteResponse', () => {
+  it('note with tags → response tagIds contains the mapped tagIds', async () => {
+    mockedRepo.findNoteByIdForUser.mockResolvedValue({
+      ...fakeNote,
+      tags: [{ tagId: 'tag-a' }, { tagId: 'tag-b' }],
+    })
+
+    const result = await getNoteById('user-1', 'note-1')
+
+    expect(result.tagIds).toEqual(['tag-a', 'tag-b'])
+  })
+
+  it('note with no tags → response tagIds is []', async () => {
+    const result = await getNoteById('user-1', 'note-1')
+
+    expect(result.tagIds).toEqual([])
   })
 })
