@@ -1,5 +1,11 @@
 import { prisma } from '../lib/prisma.js'
-import type { Note, Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
+import type { Note } from '@prisma/client'
+import type {
+  NoteSortField,
+  NoteSortOrder,
+  NoteListStatus,
+} from '@note-app/shared/schemas/notes'
 
 const TAG_IDS_INCLUDE = { tags: { select: { tagId: true } } } as const
 
@@ -79,19 +85,85 @@ export async function restoreNote(userId: string, id: string): Promise<NoteWithT
   })
 }
 
+export type ListNotesOptions = {
+  skip: number
+  take: number
+  sort: NoteSortField
+  order: NoteSortOrder
+  status: NoteListStatus
+  tagIds?: string[] // undefined = no tag filter; non-empty = OR filter on these owned tag IDs
+}
+
+// Returns the subset of `ids` that are tags owned by `userId`, so the service can
+// drop unknown / another user's tag IDs from a filter (FRS-4.5.3 / 9.1).
+export async function findOwnedTagIds(userId: string, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return []
+  const rows = await prisma.tag.findMany({
+    where: { userId, id: { in: ids } },
+    select: { id: true },
+  })
+  return rows.map((r) => r.id)
+}
+
 export async function listNotesWithCount(
   userId: string,
-  opts: { skip: number; take: number },
+  opts: ListNotesOptions,
 ): Promise<[NoteWithTagIds[], number]> {
-  const [notes, total] = await prisma.$transaction([
-    prisma.note.findMany({
-      where: { userId, deletedAt: null },
-      orderBy: { updatedAt: 'desc' },
-      skip: opts.skip,
-      take: opts.take,
-      include: TAG_IDS_INCLUDE,
-    }),
-    prisma.note.count({ where: { userId, deletedAt: null } }),
-  ])
-  return [notes as NoteWithTagIds[], total]
+  const { skip, take, sort, order, status, tagIds } = opts
+
+  // Whitelisted ORDER BY column (case-insensitive for title) + direction. `sort`
+  // and `order` are validated enums, so these fragments never carry user input.
+  // Every ordering gets a secondary sort on id for stable pagination (FRS-4.5.2).
+  let sortColumn: Prisma.Sql
+  if (sort === 'title') sortColumn = Prisma.sql`lower(n."title")`
+  else if (sort === 'createdAt') sortColumn = Prisma.sql`n."createdAt"`
+  else sortColumn = Prisma.sql`n."updatedAt"`
+  const dir = order === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
+
+  // status → soft-delete predicate (FRS-4.4.2)
+  const statusSql =
+    status === 'trashed'
+      ? Prisma.sql`n."deletedAt" IS NOT NULL`
+      : Prisma.sql`n."deletedAt" IS NULL`
+
+  // Optional tag OR filter, de-duplicated via EXISTS so a note carrying several of
+  // the supplied tags is returned once (FRS-4.5.3).
+  const tagSql =
+    tagIds && tagIds.length > 0
+      ? Prisma.sql`AND EXISTS (SELECT 1 FROM "NoteTag" nt WHERE nt."noteId" = n."id" AND nt."tagId" IN (${Prisma.join(tagIds)}))`
+      : Prisma.empty
+
+  const whereSql = Prisma.sql`WHERE n."userId" = ${userId} AND ${statusSql} ${tagSql}`
+
+  // 1) ordered + filtered + paginated IDs — raw is required for lower(title)
+  //    ordering, which Prisma's orderBy cannot express on a plain String column.
+  const idRows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+    SELECT n."id" FROM "Note" n
+    ${whereSql}
+    ORDER BY ${sortColumn} ${dir}, n."id" ${dir}
+    LIMIT ${take} OFFSET ${skip}
+  `)
+
+  // 2) total over the same predicate (counts each matching note once)
+  const countRows = await prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+    SELECT COUNT(*) AS count FROM "Note" n
+    ${whereSql}
+  `)
+  const total = Number(countRows[0]?.count ?? 0)
+
+  if (idRows.length === 0) return [[], total]
+
+  // 3) hydrate full rows via Prisma (correct JSON/Date typing + tag associations),
+  //    preserving raw-SQL order.
+  const ids = idRows.map((r) => r.id)
+  const notes = await prisma.note.findMany({
+    where: { id: { in: ids } },
+    include: TAG_IDS_INCLUDE,
+  })
+  const byId = new Map(notes.map((n) => [n.id, n]))
+  const ordered = ids
+    .map((id) => byId.get(id))
+    .filter((n): n is NoteWithTagIds => n !== undefined)
+
+  return [ordered, total]
 }

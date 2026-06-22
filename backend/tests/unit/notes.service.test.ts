@@ -35,6 +35,7 @@ beforeEach(() => {
   mockedRepo.softDeleteNote.mockResolvedValue(fakeNote)
   mockedRepo.restoreNote.mockResolvedValue(fakeNote)
   mockedRepo.listNotesWithCount.mockResolvedValue([[fakeNote], 1])
+  mockedRepo.findOwnedTagIds.mockResolvedValue([])
   mockedTagsRepo.countOwned.mockResolvedValue(0)
 })
 
@@ -213,7 +214,7 @@ describe('listNotes', () => {
   it('default page/limit (empty query {}) → calls listNotesWithCount with { skip: 0, take: 20 }, returns { data, page: 1, limit: 20, total }', async () => {
     const result = await listNotes('user-1', {})
 
-    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 0, take: 20 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', expect.objectContaining({ skip: 0, take: 20 }))
     expect(result).toMatchObject({ page: 1, limit: 20, total: 1 })
     expect(Array.isArray(result.data)).toBe(true)
   })
@@ -221,19 +222,19 @@ describe('listNotes', () => {
   it('page=0 is clamped to 1 (skip stays 0)', async () => {
     await listNotes('user-1', { page: 0 })
 
-    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 0, take: 20 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', expect.objectContaining({ skip: 0, take: 20 }))
   })
 
   it('limit=999 is clamped to 100', async () => {
     await listNotes('user-1', { limit: 999 })
 
-    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 0, take: 100 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', expect.objectContaining({ skip: 0, take: 100 }))
   })
 
   it('page=3, limit=10 → skip=20', async () => {
     await listNotes('user-1', { page: 3, limit: 10 })
 
-    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 20, take: 10 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', expect.objectContaining({ skip: 20, take: 10 }))
   })
 
   it('total comes from listNotesWithCount independently of page', async () => {
@@ -333,5 +334,67 @@ describe('tagIds — toNoteResponse', () => {
     const result = await getNoteById('user-1', 'note-1')
 
     expect(result.tagIds).toEqual([])
+  })
+})
+
+// ── listNotes — AB-1005 sort/filter/status ─────────────────────────────────────
+
+describe('listNotes — AB-1005 sort/filter/status', () => {
+  it('defaults order to desc when sort is supplied without order', async () => {
+    await listNotes('user-1', { sort: 'title' })
+
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ sort: 'title', order: 'desc' }),
+    )
+  })
+
+  it('maps omitted status to the active option', async () => {
+    await listNotes('user-1', {})
+
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ status: 'active' }),
+    )
+  })
+
+  it('maps status=trashed through to the repo option', async () => {
+    await listNotes('user-1', { status: 'trashed' })
+
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ status: 'trashed' }),
+    )
+  })
+
+  it('drops unknown/foreign tag ids and queries with only owned ids', async () => {
+    mockedRepo.findOwnedTagIds.mockResolvedValue(['t1'])
+
+    await listNotes('user-1', { tags: ['t1', 't2'] })
+
+    expect(mockedRepo.findOwnedTagIds).toHaveBeenCalledWith('user-1', ['t1', 't2'])
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ tagIds: ['t1'] }),
+    )
+  })
+
+  it('returns an empty page when a tag filter resolves to no owned tag', async () => {
+    mockedRepo.findOwnedTagIds.mockResolvedValue([])
+
+    const result = await listNotes('user-1', { tags: ['x'] })
+
+    expect(result).toEqual({ data: [], page: 1, limit: 20, total: 0 })
+    expect(mockedRepo.listNotesWithCount).not.toHaveBeenCalled()
+  })
+
+  it('applies no tag filter (tagIds undefined) for an empty tags array', async () => {
+    await listNotes('user-1', { tags: [] })
+
+    expect(mockedRepo.findOwnedTagIds).not.toHaveBeenCalled()
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ tagIds: undefined }),
+    )
   })
 })

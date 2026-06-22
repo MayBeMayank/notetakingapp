@@ -8,6 +8,9 @@ import type {
   ListNotesQuery,
   NoteResponse,
   NoteListResponse,
+  NoteSortField,
+  NoteSortOrder,
+  NoteListStatus,
 } from '@note-app/shared/schemas/notes'
 import type { NoteWithTagIds } from '../repositories/notes.repository.js'
 
@@ -18,6 +21,11 @@ const DEFAULT_LIMIT = 20
 const MIN_PAGE = 1
 const MIN_LIMIT = 1
 const MAX_LIMIT = 100
+
+// FRS-4.5.2 default: last-updated, descending; FRS-4.4.2 default: active only.
+const DEFAULT_SORT: NoteSortField = 'updatedAt'
+const DEFAULT_ORDER: NoteSortOrder = 'desc'
+const DEFAULT_STATUS: NoteListStatus = 'active'
 
 function toNoteResponse(note: NoteWithTagIds): NoteResponse {
   return {
@@ -120,7 +128,31 @@ export async function listNotes(
   const limit = Math.min(MAX_LIMIT, Math.max(MIN_LIMIT, query.limit ?? DEFAULT_LIMIT))
   const skip = (page - 1) * limit
 
-  const [notes, total] = await notesRepo.listNotesWithCount(userId, { skip, take: limit })
+  const sort = query.sort ?? DEFAULT_SORT
+  const order = query.order ?? DEFAULT_ORDER
+  const status = query.status ?? DEFAULT_STATUS
+
+  // Resolve the tag filter to the caller's OWNED tag IDs; unknown / another user's
+  // IDs are dropped (FRS-4.5.3 / 9.1). A filter that was requested but resolves to
+  // no owned tag yields an empty page — never the full list, never a leak.
+  const requestedTags = query.tags ?? []
+  let tagIds: string[] | undefined
+  if (requestedTags.length > 0) {
+    const owned = await notesRepo.findOwnedTagIds(userId, requestedTags)
+    if (owned.length === 0) {
+      return { data: [], page, limit, total: 0 }
+    }
+    tagIds = owned
+  }
+
+  const [notes, total] = await notesRepo.listNotesWithCount(userId, {
+    skip,
+    take: limit,
+    sort,
+    order,
+    status,
+    tagIds,
+  })
 
   return {
     data: notes.map(toNoteResponse),

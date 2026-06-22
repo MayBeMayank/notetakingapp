@@ -866,3 +866,330 @@ describe('note responses always include tagIds', () => {
     expect(restoreRes.body.note.tagIds).toEqual([tagId])
   })
 })
+
+// ── GET /api/notes — AB-1005 sort/filter/status ────────────────────────────────
+
+describe('GET /api/notes — AB-1005 sort/filter/status', () => {
+  const emptyDoc = { type: 'doc', content: [] }
+
+  // Seed a note directly so createdAt is deterministic. updatedAt is an
+  // @updatedAt field (auto-managed), so it is set afterward via raw SQL.
+  async function seedNote(opts: {
+    userId: string
+    title: string
+    createdAt?: Date
+    updatedAt?: Date
+    deletedAt?: Date | null
+  }) {
+    const note = await prisma.note.create({
+      data: {
+        userId: opts.userId,
+        title: opts.title,
+        contentJson: emptyDoc,
+        contentText: '',
+        createdAt: opts.createdAt ?? new Date('2024-01-01T00:00:00Z'),
+      },
+    })
+    if (opts.updatedAt) {
+      await prisma.$executeRaw`UPDATE "Note" SET "updatedAt" = ${opts.updatedAt} WHERE id = ${note.id}`
+    }
+    if (opts.deletedAt) {
+      await prisma.note.update({ where: { id: note.id }, data: { deletedAt: opts.deletedAt } })
+    }
+    return note
+  }
+
+  async function seedTag(userId: string, name: string) {
+    return prisma.tag.create({ data: { userId, name, color: '#3B82F6' } })
+  }
+
+  async function attachTag(noteId: string, tagId: string) {
+    await prisma.noteTag.create({ data: { noteId, tagId } })
+  }
+
+  // ── SORT ──────────────────────────────────────────────────────────────────
+
+  it('?sort=createdAt&order=asc orders by created date ascending; order=desc reverses', async () => {
+    const { token, userId } = await registerAndLogin()
+    const older = await seedNote({ userId, title: 'Older', createdAt: new Date('2024-01-01T00:00:00Z') })
+    const newer = await seedNote({ userId, title: 'Newer', createdAt: new Date('2024-06-01T00:00:00Z') })
+
+    const asc = await request(app)
+      .get('/api/notes?sort=createdAt&order=asc')
+      .set('Authorization', `Bearer ${token}`)
+    expect(asc.status).toBe(200)
+    expect(asc.body.data.map((n: { id: string }) => n.id)).toEqual([older.id, newer.id])
+
+    const desc = await request(app)
+      .get('/api/notes?sort=createdAt&order=desc')
+      .set('Authorization', `Bearer ${token}`)
+    expect(desc.status).toBe(200)
+    expect(desc.body.data.map((n: { id: string }) => n.id)).toEqual([newer.id, older.id])
+  })
+
+  it('?sort=updatedAt&order=asc returns the inverse of the default order', async () => {
+    const { token, userId } = await registerAndLogin()
+    const first = await seedNote({ userId, title: 'First', updatedAt: new Date('2024-01-01T00:00:00Z') })
+    const second = await seedNote({ userId, title: 'Second', updatedAt: new Date('2024-02-01T00:00:00Z') })
+    const third = await seedNote({ userId, title: 'Third', updatedAt: new Date('2024-03-01T00:00:00Z') })
+
+    const def = await request(app)
+      .get('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+    expect(def.status).toBe(200)
+    expect(def.body.data.map((n: { id: string }) => n.id)).toEqual([third.id, second.id, first.id])
+
+    const asc = await request(app)
+      .get('/api/notes?sort=updatedAt&order=asc')
+      .set('Authorization', `Bearer ${token}`)
+    expect(asc.status).toBe(200)
+    expect(asc.body.data.map((n: { id: string }) => n.id)).toEqual([first.id, second.id, third.id])
+  })
+
+  it('?sort=title&order=asc is case-insensitive (apple before Zebra)', async () => {
+    const { token, userId } = await registerAndLogin()
+    await seedNote({ userId, title: 'Zebra' })
+    await seedNote({ userId, title: 'apple' })
+
+    const res = await request(app)
+      .get('/api/notes?sort=title&order=asc')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data[0].title).toBe('apple')
+  })
+
+  it('breaks ties on id so pagination is stable when sort values are equal', async () => {
+    const { token, userId } = await registerAndLogin()
+    const sameUpdatedAt = new Date('2024-05-01T00:00:00Z')
+    const ids: string[] = []
+    for (let i = 0; i < 5; i++) {
+      const note = await seedNote({ userId, title: `Tie ${i}`, updatedAt: sameUpdatedAt })
+      ids.push(note.id)
+    }
+
+    const page1 = await request(app)
+      .get('/api/notes?limit=2&page=1')
+      .set('Authorization', `Bearer ${token}`)
+    expect(page1.status).toBe(200)
+    const page1Ids = page1.body.data.map((n: { id: string }) => n.id)
+
+    const page2 = await request(app)
+      .get('/api/notes?limit=2&page=2')
+      .set('Authorization', `Bearer ${token}`)
+    expect(page2.status).toBe(200)
+    const page2Ids = page2.body.data.map((n: { id: string }) => n.id)
+
+    // No id appears on both pages, and the union is 4 distinct seeded ids.
+    const overlap = page1Ids.filter((id: string) => page2Ids.includes(id))
+    expect(overlap).toEqual([])
+    const union = [...page1Ids, ...page2Ids]
+    expect(new Set(union).size).toBe(union.length)
+    expect(union).toHaveLength(4)
+    for (const id of union) expect(ids).toContain(id)
+  })
+
+  it('?sort=foo returns 400, and ?order=sideways returns 400', async () => {
+    const { token } = await registerAndLogin()
+
+    const badSort = await request(app)
+      .get('/api/notes?sort=foo')
+      .set('Authorization', `Bearer ${token}`)
+    expect(badSort.status).toBe(400)
+    expect(badSort.body.error.code).toBe('VALIDATION_ERROR')
+
+    const badOrder = await request(app)
+      .get('/api/notes?order=sideways')
+      .set('Authorization', `Bearer ${token}`)
+    expect(badOrder.status).toBe(400)
+    expect(badOrder.body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  // ── TAG FILTER ──────────────────────────────────────────────────────────────
+
+  it('?tags=<tagA> returns only notes carrying tagA', async () => {
+    const { token, userId } = await registerAndLogin()
+    const tagA = await seedTag(userId, 'work')
+    const tagged = await seedNote({ userId, title: 'Tagged' })
+    const untagged = await seedNote({ userId, title: 'Untagged' })
+    await attachTag(tagged.id, tagA.id)
+
+    const res = await request(app)
+      .get(`/api/notes?tags=${tagA.id}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    const ids = res.body.data.map((n: { id: string }) => n.id)
+    expect(ids).toContain(tagged.id)
+    expect(ids).not.toContain(untagged.id)
+    expect(res.body.total).toBe(1)
+  })
+
+  it('?tags=<tagA>,<tagB> returns the union (OR)', async () => {
+    const { token, userId } = await registerAndLogin()
+    const tagA = await seedTag(userId, 'work')
+    const tagB = await seedTag(userId, 'home')
+    const onlyA = await seedNote({ userId, title: 'Only A' })
+    const onlyB = await seedNote({ userId, title: 'Only B' })
+    const neither = await seedNote({ userId, title: 'Neither' })
+    await attachTag(onlyA.id, tagA.id)
+    await attachTag(onlyB.id, tagB.id)
+
+    const res = await request(app)
+      .get(`/api/notes?tags=${tagA.id},${tagB.id}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    const ids = res.body.data.map((n: { id: string }) => n.id)
+    expect(ids).toContain(onlyA.id)
+    expect(ids).toContain(onlyB.id)
+    expect(ids).not.toContain(neither.id)
+    expect(res.body.total).toBe(2)
+  })
+
+  it('a note carrying both tagA and tagB appears once and counts once in total', async () => {
+    const { token, userId } = await registerAndLogin()
+    const tagA = await seedTag(userId, 'work')
+    const tagB = await seedTag(userId, 'home')
+    const both = await seedNote({ userId, title: 'Both' })
+    await attachTag(both.id, tagA.id)
+    await attachTag(both.id, tagB.id)
+
+    const res = await request(app)
+      .get(`/api/notes?tags=${tagA.id},${tagB.id}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    const occurrences = res.body.data.filter((n: { id: string }) => n.id === both.id)
+    expect(occurrences).toHaveLength(1)
+    expect(res.body.total).toBe(1)
+  })
+
+  it('?tags=<tagA> with status omitted excludes a soft-deleted tagged note', async () => {
+    const { token, userId } = await registerAndLogin()
+    const tagA = await seedTag(userId, 'work')
+    const deleted = await seedNote({ userId, title: 'Deleted Tagged', deletedAt: new Date() })
+    await attachTag(deleted.id, tagA.id)
+
+    const res = await request(app)
+      .get(`/api/notes?tags=${tagA.id}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    const ids = res.body.data.map((n: { id: string }) => n.id)
+    expect(ids).not.toContain(deleted.id)
+    expect(res.body.total).toBe(0)
+  })
+
+  // ── STATUS ────────────────────────────────────────────────────────────────
+
+  it('?status=trashed returns only soft-deleted notes', async () => {
+    const { token, userId } = await registerAndLogin()
+    const active = await seedNote({ userId, title: 'Active' })
+    const trashed = await seedNote({ userId, title: 'Trashed', deletedAt: new Date() })
+
+    const res = await request(app)
+      .get('/api/notes?status=trashed')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    const ids = res.body.data.map((n: { id: string }) => n.id)
+    expect(ids).toContain(trashed.id)
+    expect(ids).not.toContain(active.id)
+    expect(res.body.total).toBe(1)
+  })
+
+  it('?status=trashed includes notes deleted more than 30 days ago', async () => {
+    const { token, userId } = await registerAndLogin()
+    const oldDeletedAt = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000)
+    const old = await seedNote({ userId, title: 'Long Gone', deletedAt: oldDeletedAt })
+
+    const res = await request(app)
+      .get('/api/notes?status=trashed')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    const ids = res.body.data.map((n: { id: string }) => n.id)
+    expect(ids).toContain(old.id)
+  })
+
+  it('?status=trashed shows only the caller\'s own soft-deleted notes', async () => {
+    const alice = await registerAndLogin('alice@example.com')
+    const bob = await registerAndLogin('bob@example.com')
+    const aliceTrashed = await seedNote({ userId: alice.userId, title: 'Alice Trash', deletedAt: new Date() })
+    const bobTrashed = await seedNote({ userId: bob.userId, title: 'Bob Trash', deletedAt: new Date() })
+
+    const res = await request(app)
+      .get('/api/notes?status=trashed')
+      .set('Authorization', `Bearer ${alice.token}`)
+
+    expect(res.status).toBe(200)
+    const ids = res.body.data.map((n: { id: string }) => n.id)
+    expect(ids).toContain(aliceTrashed.id)
+    expect(ids).not.toContain(bobTrashed.id)
+  })
+
+  it('?status=archived returns 400 VALIDATION_ERROR', async () => {
+    const { token } = await registerAndLogin()
+
+    const res = await request(app)
+      .get('/api/notes?status=archived')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  // ── COMPOSE ───────────────────────────────────────────────────────────────
+
+  it('combines status, tags, sort, order, page, and limit in one request', async () => {
+    const { token, userId } = await registerAndLogin()
+    const tagA = await seedTag(userId, 'work')
+
+    // Four active, tagged notes with distinct createdAt; one active untagged
+    // note and one trashed tagged note that must both be excluded.
+    const n1 = await seedNote({ userId, title: 'C1', createdAt: new Date('2024-01-01T00:00:00Z') })
+    const n2 = await seedNote({ userId, title: 'C2', createdAt: new Date('2024-02-01T00:00:00Z') })
+    const n3 = await seedNote({ userId, title: 'C3', createdAt: new Date('2024-03-01T00:00:00Z') })
+    const n4 = await seedNote({ userId, title: 'C4', createdAt: new Date('2024-04-01T00:00:00Z') })
+    const untagged = await seedNote({ userId, title: 'Untagged', createdAt: new Date('2024-05-01T00:00:00Z') })
+    const trashed = await seedNote({ userId, title: 'Trashed', createdAt: new Date('2024-06-01T00:00:00Z'), deletedAt: new Date() })
+    for (const n of [n1, n2, n3, n4, trashed]) await attachTag(n.id, tagA.id)
+
+    // active + tagA + sort=createdAt asc → [n1,n2,n3,n4]; limit=2 page=2 → [n3,n4]
+    const res = await request(app)
+      .get(`/api/notes?status=active&tags=${tagA.id}&sort=createdAt&order=asc&page=2&limit=2`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.page).toBe(2)
+    expect(res.body.limit).toBe(2)
+    expect(res.body.total).toBe(4)
+    expect(res.body.data.map((n: { id: string }) => n.id)).toEqual([n3.id, n4.id])
+    const ids = res.body.data.map((n: { id: string }) => n.id)
+    expect(ids).not.toContain(untagged.id)
+    expect(ids).not.toContain(trashed.id)
+  })
+
+  it('total reflects the filtered set across pages, and data length is at most limit', async () => {
+    const { token, userId } = await registerAndLogin()
+    const tagA = await seedTag(userId, 'work')
+
+    // 5 tagged (in-set) notes + 3 untagged (out-of-set) notes.
+    for (let i = 0; i < 5; i++) {
+      const note = await seedNote({ userId, title: `In ${i}` })
+      await attachTag(note.id, tagA.id)
+    }
+    for (let i = 0; i < 3; i++) {
+      await seedNote({ userId, title: `Out ${i}` })
+    }
+
+    const res = await request(app)
+      .get(`/api/notes?tags=${tagA.id}&limit=2&page=1`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.total).toBe(5)
+    expect(res.body.data.length).toBeLessThanOrEqual(2)
+  })
+})
