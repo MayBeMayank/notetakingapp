@@ -251,3 +251,65 @@ describe('listNotes', () => {
     expect(result.data[1].id).toBe('note-old')
   })
 })
+
+// ── listNotes — AB-1005 sort/filter/status ─────────────────────────────────────
+
+describe('listNotes — AB-1005 sort/filter/status', () => {
+  it('defaults order to desc when sort is supplied without order', async () => {
+    await listNotes('user-1', { sort: 'title' })
+
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ sort: 'title', order: 'desc' }),
+    )
+  })
+
+  it('maps omitted status to the active option', async () => {
+    await listNotes('user-1', {})
+
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ status: 'active' }),
+    )
+  })
+
+  it('maps status=trashed through to the repo option', async () => {
+    await listNotes('user-1', { status: 'trashed' })
+
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ status: 'trashed' }),
+    )
+  })
+
+  it('drops unknown/foreign tag ids and queries with only owned ids', async () => {
+    mockedRepo.findOwnedTagIds.mockResolvedValue(['t1'])
+
+    await listNotes('user-1', { tags: ['t1', 't2'] })
+
+    expect(mockedRepo.findOwnedTagIds).toHaveBeenCalledWith('user-1', ['t1', 't2'])
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ tagIds: ['t1'] }),
+    )
+  })
+
+  it('returns an empty page when a tag filter resolves to no owned tag', async () => {
+    mockedRepo.findOwnedTagIds.mockResolvedValue([])
+
+    const result = await listNotes('user-1', { tags: ['x'] })
+
+    expect(result).toEqual({ data: [], page: 1, limit: 20, total: 0 })
+    expect(mockedRepo.listNotesWithCount).not.toHaveBeenCalled()
+  })
+
+  it('applies no tag filter (tagIds undefined) for an empty tags array', async () => {
+    await listNotes('user-1', { tags: [] })
+
+    expect(mockedRepo.findOwnedTagIds).not.toHaveBeenCalled()
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ tagIds: undefined }),
+    )
+  })
+})
