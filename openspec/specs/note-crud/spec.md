@@ -15,19 +15,29 @@ Define the CRUD operations (Create, Read, Update, Delete) and soft-delete restor
 > Deferred to other tickets: version snapshot-on-save (FRS-4.1.4 / 4.3.2 → AB-1009), tag associations on create/update (FRS-4.3.1 tags clause → AB-1006), full list sort/filter/status (FRS-4.5.2–4.5.4 → AB-1005), and background purge of expired-window notes (FRS-4.4.4 → ops / scheduled cron job). FRS-4.4.2 has three halves — this spec covers the default-**list** exclusion of soft-deleted notes; the **search-results** exclusion lands with AB-1007 and the **tag-count** exclusion with AB-1006.
 
 ---
-
 ## Requirements
-
 ### Requirement: Create a note
-The system SHALL allow an authenticated user to create a note with an optional title and optional rich-text content. The note SHALL be owned by the caller, be private, and be active (not deleted) on creation. The server SHALL derive `contentText` from `contentJson` and store both.
+The system SHALL allow an authenticated user to create a note with an optional title, optional rich-text content, and an optional set of `tagIds`. The note SHALL be owned by the caller, be private, and be active (not deleted) on creation. The server SHALL derive `contentText` from `contentJson` and store both. Any supplied `tagIds` SHALL be attached to the note; only the caller's own tags may be attached.
 
 #### Scenario: Create with title and content
 - **WHEN** an authenticated user POSTs `{ title: "Groceries", content: <TipTap doc> }` to `/api/notes`
-- **THEN** the system responds `201` with `{ note: { id, title, content, createdAt, updatedAt } }`, the row's `userId` is the caller, `deletedAt` is null, and `contentText` is stored as the plaintext derived from `content`
+- **THEN** the system responds `201` with `{ note: { id, title, content, tagIds, createdAt, updatedAt } }`, the row's `userId` is the caller, `deletedAt` is null, and `contentText` is stored as the plaintext derived from `content`
 
 #### Scenario: Create a blank note (autosave-on-create)
-- **WHEN** an authenticated user POSTs an empty body `{}` (or omits both `title` and `content`)
-- **THEN** the system responds `201` with a note whose `title` is `""`, whose `content` is an empty TipTap document, and whose `contentText` is `""` (FRS-4.1.2)
+- **WHEN** an authenticated user POSTs an empty body `{}` (or omits `title`, `content`, and `tagIds`)
+- **THEN** the system responds `201` with a note whose `title` is `""`, whose `content` is an empty TipTap document, whose `contentText` is `""`, and whose `tagIds` is `[]` (FRS-4.1.2)
+
+#### Scenario: Create with tag ids attaches the caller's tags
+- **WHEN** an authenticated user POSTs `{ title, content, tagIds: ["tagA", "tagB"] }` where both ids are tags the caller owns
+- **THEN** the system responds `201` and the note is associated with `tagA` and `tagB` (FRS-5.7)
+
+#### Scenario: Create with a foreign or unknown tag id rejected atomically
+- **WHEN** an authenticated user POSTs `tagIds` containing an id that does not exist or belongs to another user
+- **THEN** the system responds `422` with `{ error: { code: "INVALID_TAG_IDS", … } }`, **no note is created**, and no associations are written (FRS-5.7 / 9.1)
+
+#### Scenario: Duplicate ids in tagIds are de-duplicated
+- **WHEN** an authenticated user POSTs `tagIds: ["tagA", "tagA"]` for an owned tag
+- **THEN** the note is associated with `tagA` exactly once and the response `tagIds` lists it once
 
 #### Scenario: Created note is private to the creator
 - **WHEN** a note is created
@@ -100,17 +110,29 @@ The system SHALL allow an authenticated user to list their own active notes with
 ---
 
 ### Requirement: Update a note
-The system SHALL allow an authenticated user to update the title and/or content of one of their own non-deleted notes. Each successful update SHALL re-derive `contentText` and bump `updatedAt`. Updating a soft-deleted note SHALL be rejected until it is restored.
+The system SHALL allow an authenticated user to update the title, content, and/or tag associations of one of their own non-deleted notes. Each successful content update SHALL re-derive `contentText` and bump `updatedAt`. When `tagIds` is supplied it SHALL **replace** the note's entire tag set; only the caller's own tags may be attached. Updating a soft-deleted note SHALL be rejected until it is restored.
 
-> Tag associations (FRS-4.3.1) and version snapshot (FRS-4.3.2) are deferred.
+> `tagIds` uses full-replace set semantics: present replaces the set, `[]` detaches all, omitting it leaves associations unchanged. The version snapshot of FRS-4.3.2 remains deferred to AB-1009.
 
 #### Scenario: Update title and content
 - **WHEN** an authenticated user PATCHes `/api/notes/:id` with `{ title, content }` on an own active note
 - **THEN** the system responds `200` with the updated `{ note }`, `updatedAt` is advanced, and `contentText` is re-derived from the new `content`
 
 #### Scenario: Partial update leaves omitted fields unchanged
-- **WHEN** an authenticated user PATCHes `/api/notes/:id` with only `{ title }` (no `content`)
-- **THEN** the title is updated and the existing `content` / `contentText` are preserved unchanged; likewise a `{ content }`-only patch leaves the title unchanged
+- **WHEN** an authenticated user PATCHes `/api/notes/:id` with only `{ title }` (no `content`, no `tagIds`)
+- **THEN** the title is updated and the existing `content` / `contentText` **and existing tag associations** are preserved unchanged
+
+#### Scenario: tagIds replaces the note's entire tag set
+- **WHEN** an authenticated user PATCHes `/api/notes/:id` with `{ tagIds: ["tagB"] }` on a note currently tagged `tagA` and `tagB`
+- **THEN** the note is left associated with `tagB` only — `tagA` is detached (full-replace semantics, FRS-5.7)
+
+#### Scenario: Empty tagIds detaches all tags
+- **WHEN** an authenticated user PATCHes `/api/notes/:id` with `{ tagIds: [] }`
+- **THEN** all of the note's tag associations are removed and the response `tagIds` is `[]`
+
+#### Scenario: Update with a foreign or unknown tag id rejected atomically
+- **WHEN** an authenticated user PATCHes `tagIds` containing an id that does not exist or belongs to another user
+- **THEN** the system responds `422` with `{ error: { code: "INVALID_TAG_IDS", … } }`, and neither the note's fields nor its existing associations are changed
 
 #### Scenario: Update a soft-deleted note rejected
 - **WHEN** an authenticated user PATCHes `/api/notes/:id` for one of their own notes whose `deletedAt` is set
@@ -125,10 +147,8 @@ The system SHALL allow an authenticated user to update the title and/or content 
 - **THEN** the system responds `404`
 
 #### Scenario: Malformed update body rejected
-- **WHEN** an authenticated user PATCHes an invalid body (e.g. `content` that is not a TipTap document)
+- **WHEN** an authenticated user PATCHes an invalid body (e.g. `content` that is not a TipTap document, or `tagIds` that is not an array of strings)
 - **THEN** the system responds `400` with `fields[]` and no change is made
-
----
 
 ### Requirement: Soft-delete a note
 The system SHALL allow an authenticated user to delete one of their own active notes. Deletion SHALL be a soft delete — `deletedAt` SHALL be set and the row SHALL never be physically removed within the recovery window. A soft-deleted note SHALL disappear from the default list and read.
@@ -190,3 +210,25 @@ Every `/api/notes` operation SHALL require a valid access token and SHALL be sco
 #### Scenario: 404 response uses the standard error envelope (FRS-9.5)
 - **WHEN** any notes route returns a 404 (absent note, not-owned note, or soft-deleted note)
 - **THEN** the response body is `{ "error": { "code": "NOT_FOUND", "message": "…" } }` — no `fields` array, no internal detail, and no hint that the resource exists under a different user
+
+### Requirement: Note responses expose attached tag ids
+Every note object returned by the API — on create, read, list, update, and restore — SHALL include a `tagIds` array listing the ids of the tags currently associated with that note. The array SHALL reflect the note's live associations and SHALL be empty for a note carrying no tags.
+
+#### Scenario: Created note reports its tag ids
+- **WHEN** an authenticated user creates a note with `tagIds: ["tagA", "tagB"]`
+- **THEN** the `201` response note includes `tagIds` containing exactly `tagA` and `tagB` (order not significant)
+
+#### Scenario: Note with no tags reports an empty array
+- **WHEN** an authenticated user reads or creates a note that carries no tags
+- **THEN** the response note includes `tagIds: []` — never `null` and never an omitted field
+
+#### Scenario: Read and list include tag ids
+- **WHEN** an authenticated user GETs `/api/notes/:id` or `/api/notes`
+- **THEN** each returned note object includes its current `tagIds` array
+
+#### Scenario: tagIds reflects associations only for the caller's own tags
+- **WHEN** a note's `tagIds` is returned
+- **THEN** it contains only ids of tags owned by the caller (a note can only ever be associated with its owner's tags)
+
+---
+

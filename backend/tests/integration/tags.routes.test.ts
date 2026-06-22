@@ -446,3 +446,36 @@ describe('DELETE /api/tags/:id', () => {
     expect(res.status).toBe(401)
   })
 })
+
+// ── PATCH validation edge cases ───────────────────────────────────────────────
+
+describe('PATCH /api/tags/:id — validation edge cases', () => {
+  it('400 VALIDATION_ERROR for invalid color (shorthand #FFF)', async () => {
+    const { token } = await registerAndLogin()
+    const tagRes = await createTag(token, 'work')
+    const id = tagRes.body.tag.id
+
+    const res = await request(app)
+      .patch(`/api/tags/${id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ color: '#FFF' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION_ERROR')
+    expect(res.body.error.fields.some((f: { field: string }) => f.field === 'color')).toBe(true)
+  })
+
+  it('400 VALIDATION_ERROR for whitespace-only name on update', async () => {
+    const { token } = await registerAndLogin()
+    const tagRes = await createTag(token, 'work')
+    const id = tagRes.body.tag.id
+
+    const res = await request(app)
+      .patch(`/api/tags/${id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: '   ' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION_ERROR')
+  })
+})

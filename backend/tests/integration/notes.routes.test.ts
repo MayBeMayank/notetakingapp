@@ -843,4 +843,26 @@ describe('note responses always include tagIds', () => {
       .set('Authorization', `Bearer ${token}`)
     expect(getRes.body.note.tagIds).toEqual([])
   })
+
+  it('POST /api/notes/:id/restore response includes tagIds', async () => {
+    const { token } = await registerAndLogin()
+    const tagId = await createOwnedTag(token, 'restore-tag')
+
+    const createRes = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'To restore', content: validContent, tagIds: [tagId] })
+    const noteId = createRes.body.note.id as string
+
+    await request(app)
+      .delete(`/api/notes/${noteId}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    const restoreRes = await request(app)
+      .post(`/api/notes/${noteId}/restore`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(restoreRes.status).toBe(200)
+    expect(restoreRes.body.note.tagIds).toEqual([tagId])
+  })
 })
