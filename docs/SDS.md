@@ -261,6 +261,8 @@ Query params `page` (default 1, min 1) and `limit` (default 20, min 1, max 100).
 
 Tag associations (attach/detach, FRS-5.7) are set by passing `tagIds` on create/update; only the caller's own tags are accepted (others → 422).
 
+The `tags` list filter (FRS-4.5.3) resolves with **OR semantics**: a note matches if it carries **any** of the supplied tags. A note carrying more than one supplied tag is returned once (de-duplicated), and `total` counts each matching note once. See `docs/decisions/ADR-002-tag-filter-or-semantics.md`.
+
 ### 6.4 Tags — `/api/tags` (auth)
 
 | Method | Path | Request | Success | Errors | FRS |
@@ -359,7 +361,7 @@ Every endpoint validates its body/query against a Zod schema imported from `pack
 
 ## 12. Testing strategy
 
-- **Unit (Vitest):** services in isolation (business rules, e.g. OTP attempt cap, version retention, AND tag filtering).
+- **Unit (Vitest):** services in isolation (business rules, e.g. OTP attempt cap, version retention, OR-semantics tag filtering).
 - **Integration (Supertest):** routes against a test Postgres DB; asserts exact status codes from §5.1.
 - **E2E (Playwright, AB-1016):** full journey — register → create/edit note → tag → search → share → version restore.
 - **Rule:** every FRS acceptance criterion / spec scenario maps to exactly one named test; **≥ 80 % coverage** on new code (Definition of Done).

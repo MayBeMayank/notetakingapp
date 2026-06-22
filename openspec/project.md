@@ -83,7 +83,7 @@ Every request/response shape is a Zod schema in `packages/shared`. Types are inf
 - **Password policy:** ≥ 8 chars, ≥ 1 letter + 1 number.
 - **OTP:** 6-digit, 10-min TTL, single-use, 5-attempt cap then invalidated. Logged to console only — no email sent.
 - **Soft delete:** sets `deletedAt`; note recoverable for 30 days. Never physically deleted within window.
-- **Tag filter semantics:** multi-tag filter = AND (note must carry all supplied tags).
+- **Tag filter semantics:** multi-tag filter = OR (note matches if it carries any supplied tag).
 - **Share link:** serves note's current content, not a frozen snapshot.
 - **Version retention:** max 50 per note; older auto-purged. Restore creates a new version — history is never rewritten.
 - **Default note sort:** last-updated, descending.

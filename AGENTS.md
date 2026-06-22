@@ -157,7 +157,7 @@ pnpm --filter backend prisma db seed      # seed the database
 
 ## 10. Testing Approach
 
-- **Unit (Vitest):** services in isolation — business rules like OTP attempt cap, version retention (50-max), AND tag filtering semantics.
+- **Unit (Vitest):** services in isolation — business rules like OTP attempt cap, version retention (50-max), OR-semantics tag filtering.
 - **Integration (Supertest):** HTTP routes against a real test PostgreSQL DB; asserts exact status codes from §5.1 of SDS.
 - **E2E (Playwright):** full journey — register → create/edit note → tag → search → share → version restore.
 - **Coverage:** ≥ 80% on new code (Definition of Done).
