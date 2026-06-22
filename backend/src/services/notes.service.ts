@@ -63,14 +63,14 @@ export async function updateNote(
     updateData.contentText = deriveContentText(input.content)
   }
 
-  const updated = await notesRepo.updateNote(id, updateData)
+  const updated = await notesRepo.updateNote(userId, id, updateData)
   return toNoteResponse(updated)
 }
 
 export async function deleteNote(userId: string, id: string): Promise<void> {
   const note = await notesRepo.findNoteByIdForUser(userId, id)
   if (!note || note.deletedAt) throw new NotFoundError('Note not found')
-  await notesRepo.softDeleteNote(id)
+  await notesRepo.softDeleteNote(userId, id)
 }
 
 export async function restoreNote(userId: string, id: string): Promise<NoteResponse> {
@@ -81,7 +81,7 @@ export async function restoreNote(userId: string, id: string): Promise<NoteRespo
   if (elapsed > RESTORE_WINDOW_MS) {
     throw new ConflictError('RESTORE_WINDOW_EXPIRED', 'Restore window of 30 days has expired')
   }
-  const restored = await notesRepo.restoreNote(id)
+  const restored = await notesRepo.restoreNote(userId, id)
   return toNoteResponse(restored)
 }
 
@@ -93,10 +93,7 @@ export async function listNotes(
   const limit = Math.min(MAX_LIMIT, Math.max(MIN_LIMIT, query.limit ?? DEFAULT_LIMIT))
   const skip = (page - 1) * limit
 
-  const [notes, total] = await Promise.all([
-    notesRepo.listActiveNotes(userId, { skip, take: limit }),
-    notesRepo.countActiveNotes(userId),
-  ])
+  const [notes, total] = await notesRepo.listNotesWithCount(userId, { skip, take: limit })
 
   return {
     data: notes.map(toNoteResponse),

@@ -30,8 +30,7 @@ beforeEach(() => {
   mockedRepo.updateNote.mockResolvedValue(fakeNote)
   mockedRepo.softDeleteNote.mockResolvedValue(fakeNote)
   mockedRepo.restoreNote.mockResolvedValue(fakeNote)
-  mockedRepo.listActiveNotes.mockResolvedValue([fakeNote])
-  mockedRepo.countActiveNotes.mockResolvedValue(1)
+  mockedRepo.listNotesWithCount.mockResolvedValue([[fakeNote], 1])
 })
 
 // ── createNote ────────────────────────────────────────────────────────────────
@@ -206,10 +205,10 @@ describe('restoreNote', () => {
 // ── listNotes ─────────────────────────────────────────────────────────────────
 
 describe('listNotes', () => {
-  it('default page/limit (empty query {}) → calls listActiveNotes with { skip: 0, take: 20 }, returns { data, page: 1, limit: 20, total }', async () => {
+  it('default page/limit (empty query {}) → calls listNotesWithCount with { skip: 0, take: 20 }, returns { data, page: 1, limit: 20, total }', async () => {
     const result = await listNotes('user-1', {})
 
-    expect(mockedRepo.listActiveNotes).toHaveBeenCalledWith('user-1', { skip: 0, take: 20 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 0, take: 20 })
     expect(result).toMatchObject({ page: 1, limit: 20, total: 1 })
     expect(Array.isArray(result.data)).toBe(true)
   })
@@ -217,28 +216,38 @@ describe('listNotes', () => {
   it('page=0 is clamped to 1 (skip stays 0)', async () => {
     await listNotes('user-1', { page: 0 })
 
-    expect(mockedRepo.listActiveNotes).toHaveBeenCalledWith('user-1', { skip: 0, take: 20 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 0, take: 20 })
   })
 
   it('limit=999 is clamped to 100', async () => {
     await listNotes('user-1', { limit: 999 })
 
-    expect(mockedRepo.listActiveNotes).toHaveBeenCalledWith('user-1', { skip: 0, take: 100 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 0, take: 100 })
   })
 
   it('page=3, limit=10 → skip=20', async () => {
     await listNotes('user-1', { page: 3, limit: 10 })
 
-    expect(mockedRepo.listActiveNotes).toHaveBeenCalledWith('user-1', { skip: 20, take: 10 })
+    expect(mockedRepo.listNotesWithCount).toHaveBeenCalledWith('user-1', { skip: 20, take: 10 })
   })
 
-  it('total comes from countActiveNotes independently of page', async () => {
-    mockedRepo.countActiveNotes.mockResolvedValue(42)
-    mockedRepo.listActiveNotes.mockResolvedValue([fakeNote])
+  it('total comes from listNotesWithCount independently of page', async () => {
+    mockedRepo.listNotesWithCount.mockResolvedValue([[fakeNote], 42])
 
     const result = await listNotes('user-1', { page: 3, limit: 10 })
 
-    expect(mockedRepo.countActiveNotes).toHaveBeenCalledWith('user-1')
     expect(result.total).toBe(42)
+    expect(result.data).toHaveLength(1)
+  })
+
+  it('results are returned in the order provided by the repository (updatedAt desc)', async () => {
+    const olderNote = { ...fakeNote, id: 'note-old', updatedAt: new Date('2024-01-01T00:00:00.000Z') }
+    const newerNote = { ...fakeNote, id: 'note-new', updatedAt: new Date('2024-06-01T00:00:00.000Z') }
+    mockedRepo.listNotesWithCount.mockResolvedValue([[newerNote, olderNote], 2])
+
+    const result = await listNotes('user-1', {})
+
+    expect(result.data[0].id).toBe('note-new')
+    expect(result.data[1].id).toBe('note-old')
   })
 })

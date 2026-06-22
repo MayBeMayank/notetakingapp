@@ -25,6 +25,7 @@ export async function findNoteByIdForUser(
 }
 
 export async function updateNote(
+  userId: string,
   id: string,
   data: {
     title?: string;
@@ -33,7 +34,7 @@ export async function updateNote(
   },
 ): Promise<Note> {
   return prisma.note.update({
-    where: { id },
+    where: { id, userId },
     data: {
       ...(data.title !== undefined && { title: data.title }),
       ...(data.contentJson !== undefined && { contentJson: data.contentJson as Prisma.InputJsonValue }),
@@ -42,12 +43,12 @@ export async function updateNote(
   });
 }
 
-export async function softDeleteNote(id: string): Promise<Note> {
-  return prisma.note.update({ where: { id }, data: { deletedAt: new Date() } });
+export async function softDeleteNote(userId: string, id: string): Promise<Note> {
+  return prisma.note.update({ where: { id, userId }, data: { deletedAt: new Date() } });
 }
 
-export async function restoreNote(id: string): Promise<Note> {
-  return prisma.note.update({ where: { id }, data: { deletedAt: null } });
+export async function restoreNote(userId: string, id: string): Promise<Note> {
+  return prisma.note.update({ where: { id, userId }, data: { deletedAt: null } });
 }
 
 export async function listActiveNotes(
@@ -64,4 +65,20 @@ export async function listActiveNotes(
 
 export async function countActiveNotes(userId: string): Promise<number> {
   return prisma.note.count({ where: { userId, deletedAt: null } });
+}
+
+export async function listNotesWithCount(
+  userId: string,
+  opts: { skip: number; take: number },
+): Promise<[Note[], number]> {
+  const [notes, total] = await prisma.$transaction([
+    prisma.note.findMany({
+      where: { userId, deletedAt: null },
+      orderBy: { updatedAt: 'desc' },
+      skip: opts.skip,
+      take: opts.take,
+    }),
+    prisma.note.count({ where: { userId, deletedAt: null } }),
+  ])
+  return [notes, total]
 }

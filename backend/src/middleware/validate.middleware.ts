@@ -3,7 +3,7 @@ import type { ZodError, ZodSchema } from 'zod'
 
 function zodErrorToFields(error: ZodError) {
   return error.errors.map((e) => ({
-    field: (e.path.join('.') || e.path[0]?.toString()) ?? 'unknown',
+    field: e.path.length > 0 ? e.path.join('.') : 'body',
     message: e.message,
   }))
 }

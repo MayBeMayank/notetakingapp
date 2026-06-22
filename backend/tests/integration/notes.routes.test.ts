@@ -180,6 +180,36 @@ describe('GET /api/notes', () => {
     expect(JSON.stringify(res.body)).not.toContain('contentText')
   })
 
+  it('notes are returned in last-updated-descending order', async () => {
+    const { token } = await registerAndLogin()
+
+    const resA = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Note A' })
+    const noteAId = resA.body.note.id as string
+
+    const resB = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Note B' })
+    const noteBId = resB.body.note.id as string
+
+    // Patch A so it gets a newer updatedAt than B
+    await request(app)
+      .patch(`/api/notes/${noteAId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Note A Updated' })
+
+    const res = await request(app)
+      .get('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data[0].id).toBe(noteAId)
+    expect(res.body.data[1].id).toBe(noteBId)
+  })
+
   it('401 when no Authorization header', async () => {
     const res = await request(app).get('/api/notes')
 
@@ -224,6 +254,7 @@ describe('GET /api/notes/:id', () => {
       .set('Authorization', `Bearer ${alice.token}`)
 
     expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
     expect(JSON.stringify(res.body)).not.toContain('contentText')
   })
 
@@ -235,6 +266,7 @@ describe('GET /api/notes/:id', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
     expect(JSON.stringify(res.body)).not.toContain('contentText')
   })
 
@@ -256,6 +288,7 @@ describe('GET /api/notes/:id', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
     expect(JSON.stringify(res.body)).not.toContain('contentText')
   })
 
@@ -355,7 +388,40 @@ describe('PATCH /api/notes/:id', () => {
       .send({ title: 'Alice Hijacks' })
 
     expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
     expect(JSON.stringify(res.body)).not.toContain('contentText')
+  })
+
+  it('partial update: if body only has content, title field in response is unchanged', async () => {
+    const { token } = await registerAndLogin()
+    const createRes = await request(app)
+      .post('/api/notes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Keep This Title', content: validContent })
+    const noteId = createRes.body.note.id as string
+
+    const newContent = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'New content' }] }] }
+
+    const res = await request(app)
+      .patch(`/api/notes/${noteId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content: newContent })
+
+    expect(res.status).toBe(200)
+    expect(res.body.note.title).toBe('Keep This Title')
+    expect(JSON.stringify(res.body)).not.toContain('contentText')
+  })
+
+  it('404 for a non-existent note id', async () => {
+    const { token } = await registerAndLogin()
+
+    const res = await request(app)
+      .patch('/api/notes/nonexistent-id-00000000')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Update' })
+
+    expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
   })
 
   it('400 VALIDATION_ERROR for empty body {} (at least one field required)', async () => {
@@ -421,6 +487,18 @@ describe('DELETE /api/notes/:id', () => {
       .set('Authorization', `Bearer ${alice.token}`)
 
     expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+  })
+
+  it('404 for a non-existent note id', async () => {
+    const { token } = await registerAndLogin()
+
+    const res = await request(app)
+      .delete('/api/notes/nonexistent-id-00000000')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
   })
 
   it('404 for an already-deleted note (delete twice; second call must 404)', async () => {
@@ -440,6 +518,7 @@ describe('DELETE /api/notes/:id', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
   })
 
   it('401 when no Authorization header', async () => {
@@ -541,6 +620,18 @@ describe('POST /api/notes/:id/restore', () => {
       .set('Authorization', `Bearer ${alice.token}`)
 
     expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+  })
+
+  it('404 for a non-existent note id', async () => {
+    const { token } = await registerAndLogin()
+
+    const res = await request(app)
+      .post('/api/notes/nonexistent-id-00000000/restore')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
   })
 
   it('401 when no Authorization header', async () => {
