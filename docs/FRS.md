@@ -135,7 +135,7 @@ There is no admin role and no cross-user access in this release.
 ### 4.5 List, pagination, sorting, filtering
 - **FRS-4.5.1** — A user SHALL be able to list their own active notes with pagination; the list SHALL report total count and current page so the UI can render paging controls.
 - **FRS-4.5.2** — The list SHALL be sortable by **created date, last-updated date, and title**, ascending or descending. Default sort is last-updated, descending.
-- **FRS-4.5.3** — The list SHALL be filterable by one or more tags. When multiple tags are supplied the result SHALL contain notes carrying **all** supplied tags (AND semantics).
+- **FRS-4.5.3** — The list SHALL be filterable by one or more tags. When multiple tags are supplied the result SHALL contain notes carrying **any** of the supplied tags (OR semantics). A note carrying more than one of the supplied tags SHALL appear exactly once.
 - **FRS-4.5.4** — Pagination, sorting, and filtering SHALL compose in a single request.
 
 ---
@@ -248,7 +248,7 @@ The following decisions are **confirmed and binding**. The SDS hardens them into
 1. **Password policy** (FRS-3.1.3): ≥ 8 chars, ≥ 1 letter + 1 number. — ✅ Confirmed
 2. **OTP** (FRS-3.4.2 / 3.4.5): 6 digits, 10-minute validity, single-use, 5-attempt cap. — ✅ Confirmed
 3. **Soft-delete recovery window** (FRS-4.4.3): 30 days; aligns with assignment Rule 15. — ✅ Confirmed
-4. **Tag filter semantics** (FRS-4.5.3): multi-tag = **AND** (a note must carry all selected tags). — ✅ Confirmed
+4. **Tag filter semantics** (FRS-4.5.3): multi-tag = **OR** (a note carrying any selected tag matches). — ✅ Confirmed (revised 2026-06-22, AND → OR; see `docs/decisions/ADR-002-tag-filter-or-semantics.md`)
 5. **Share link target** (FRS-7.3): serves the note's **current** content, not a frozen snapshot. — ✅ Confirmed
 6. **Version retention** (FRS-8.5): keep the most recent **50** versions per note; auto-purge older. — ✅ Confirmed
 7. **Default note sort** (FRS-4.5.2): **last-updated, descending**. — ✅ Confirmed
