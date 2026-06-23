@@ -12,32 +12,36 @@ Define the CRUD operations (Create, Read, Update, Delete) and soft-delete restor
 
 **SDS coverage:** §6.3 (notes contracts), §10 (soft-delete design), §5.1 (status codes), §5.2 (pagination)
 
-> Deferred to other tickets: version snapshot-on-save (FRS-4.1.4 / 4.3.2 → AB-1009), tag associations on create/update (FRS-4.3.1 tags clause → AB-1006), full list sort/filter/status (FRS-4.5.2–4.5.4 → AB-1005), and background purge of expired-window notes (FRS-4.4.4 → ops / scheduled cron job). FRS-4.4.2 has three halves — this spec covers the default-**list** exclusion of soft-deleted notes; the **search-results** exclusion lands with AB-1007 and the **tag-count** exclusion with AB-1006.
+> Version snapshot-on-save (FRS-4.1.4 / 4.3.2) is delivered by **AB-1009** — create captures version 1 and a title/content-changing update captures a new version, atomically with the note write (see the `version-history` spec). Deferred to other tickets: full list sort/filter/status (FRS-4.5.2–4.5.4 → AB-1005), and background purge of expired-window notes (FRS-4.4.4 → ops / scheduled cron job). FRS-4.4.2 has three halves — this spec covers the default-**list** exclusion of soft-deleted notes; the **search-results** exclusion lands with AB-1007 and the **tag-count** exclusion with AB-1006.
 
 ---
 ## Requirements
 ### Requirement: Create a note
-The system SHALL allow an authenticated user to create a note with an optional title, optional rich-text content, and an optional set of `tagIds`. The note SHALL be owned by the caller, be private, and be active (not deleted) on creation. The server SHALL derive `contentText` from `contentJson` and store both. Any supplied `tagIds` SHALL be attached to the note; only the caller's own tags may be attached.
+The system SHALL allow an authenticated user to create a note with an optional title, optional rich-text content, and an optional set of `tagIds`. The note SHALL be owned by the caller, be private, and be active (not deleted) on creation. The server SHALL derive `contentText` from `contentJson` and store both. Any supplied `tagIds` SHALL be attached to the note; only the caller's own tags may be attached. Creating a note SHALL capture an **initial version** (`versionNumber = 1`) recording the note's title, content, and tag-id snapshot, written in the **same transaction** as the note insert (FRS-8.1 / FRS-4.1.4).
 
 #### Scenario: Create with title and content
 - **WHEN** an authenticated user POSTs `{ title: "Groceries", content: <TipTap doc> }` to `/api/notes`
 - **THEN** the system responds `201` with `{ note: { id, title, content, tagIds, createdAt, updatedAt } }`, the row's `userId` is the caller, `deletedAt` is null, and `contentText` is stored as the plaintext derived from `content`
 
-#### Scenario: Create a blank note (autosave-on-create)
+#### Scenario: Create captures an initial version atomically
+- **WHEN** an authenticated user creates a note
+- **THEN** exactly one `NoteVersion` is written with `versionNumber = 1`, capturing the note's `title`, `contentJson`, `contentText`, and current `tagIds`, in the same transaction as the note insert — if the version write fails, the note is not created (FRS-8.1)
+
+#### Scenario: Create a blank note (autosave-on-create) still versions
 - **WHEN** an authenticated user POSTs an empty body `{}` (or omits `title`, `content`, and `tagIds`)
-- **THEN** the system responds `201` with a note whose `title` is `""`, whose `content` is an empty TipTap document, whose `contentText` is `""`, and whose `tagIds` is `[]` (FRS-4.1.2)
+- **THEN** the system responds `201` with a note whose `title` is `""`, whose `content` is an empty TipTap document, whose `contentText` is `""`, and whose `tagIds` is `[]`; a `versionNumber = 1` snapshot of that blank state is recorded (FRS-4.1.2 / 8.1)
 
-#### Scenario: Create with tag ids attaches the caller's tags
+#### Scenario: Create with tag ids attaches the caller's tags and snapshots them
 - **WHEN** an authenticated user POSTs `{ title, content, tagIds: ["tagA", "tagB"] }` where both ids are tags the caller owns
-- **THEN** the system responds `201` and the note is associated with `tagA` and `tagB` (FRS-5.7)
-
-#### Scenario: Create with a foreign or unknown tag id rejected atomically
-- **WHEN** an authenticated user POSTs `tagIds` containing an id that does not exist or belongs to another user
-- **THEN** the system responds `422` with `{ error: { code: "INVALID_TAG_IDS", … } }`, **no note is created**, and no associations are written (FRS-5.7 / 9.1)
+- **THEN** the system responds `201`, the note is associated with `tagA` and `tagB`, and version 1's `tagIds` snapshot is `["tagA", "tagB"]` (FRS-5.7 / 8.1)
 
 #### Scenario: Duplicate ids in tagIds are de-duplicated
 - **WHEN** an authenticated user POSTs `tagIds: ["tagA", "tagA"]` for an owned tag
 - **THEN** the note is associated with `tagA` exactly once and the response `tagIds` lists it once
+
+#### Scenario: Create with a foreign or unknown tag id rejected atomically
+- **WHEN** an authenticated user POSTs `tagIds` containing an id that does not exist or belongs to another user
+- **THEN** the system responds `422` with `{ error: { code: "INVALID_TAG_IDS", … } }`, **no note is created**, and **no version is written** (FRS-5.7 / 9.1)
 
 #### Scenario: Created note is private to the creator
 - **WHEN** a note is created
@@ -45,15 +49,15 @@ The system SHALL allow an authenticated user to create a note with an optional t
 
 #### Scenario: contentText is derived server-side, both stored together
 - **WHEN** a note is created with `content` containing nested rich-text nodes
-- **THEN** the backend derives `contentText` (plaintext) from `contentJson` and writes `contentJson` and `contentText` in the same operation; the client is not required to send `contentText`
+- **THEN** the backend derives `contentText` (plaintext) from `contentJson` and writes `contentJson` and `contentText` (on the note and on version 1) in the same operation
 
 #### Scenario: Malformed content rejected
 - **WHEN** an authenticated user POSTs a `content` value that is not a valid TipTap JSON document object (e.g. a string or array)
-- **THEN** the system responds `400` with `{ error: { code: "VALIDATION_ERROR", fields: [{ field: "content", message: "…" }] } }`
+- **THEN** the system responds `400` with `{ error: { code: "VALIDATION_ERROR", fields: [{ field: "content", message: "…" }] } }` and no note or version is written
 
 #### Scenario: Unauthenticated create rejected
 - **WHEN** a request to `POST /api/notes` carries no valid access token
-- **THEN** the auth middleware responds `401` and the note is not created (FRS-9.2)
+- **THEN** the auth middleware responds `401` and neither a note nor a version is created (FRS-9.2)
 
 ---
 
@@ -110,17 +114,29 @@ The system SHALL allow an authenticated user to list their own active notes with
 ---
 
 ### Requirement: Update a note
-The system SHALL allow an authenticated user to update the title, content, and/or tag associations of one of their own non-deleted notes. Each successful content update SHALL re-derive `contentText` and bump `updatedAt`. When `tagIds` is supplied it SHALL **replace** the note's entire tag set; only the caller's own tags may be attached. Updating a soft-deleted note SHALL be rejected until it is restored.
+The system SHALL allow an authenticated user to update the title, content, and/or tag associations of one of their own non-deleted notes. Each successful content update SHALL re-derive `contentText` and bump `updatedAt`. When `tagIds` is supplied it SHALL **replace** the note's entire tag set; only the caller's own tags may be attached. Updating a soft-deleted note SHALL be rejected until it is restored. A successful update SHALL capture a **new version** snapshot — recording the post-save title, content, and tag-id set — in the **same transaction**, **but only when the `title` or `content` actually changed**; an update that changes only `tagIds` (or changes nothing) SHALL NOT create a version (FRS-8.1 / clarification 1).
 
-> `tagIds` uses full-replace set semantics: present replaces the set, `[]` detaches all, omitting it leaves associations unchanged. The version snapshot of FRS-4.3.2 remains deferred to AB-1009.
+> `tagIds` uses full-replace set semantics: present replaces the set, `[]` detaches all, omitting it leaves associations unchanged. The version snapshot deferred from AB-1004 (FRS-4.3.2) is delivered here. After a version insert, the note's versions are auto-purged to the most-recent 50 (FRS-8.5, specified in `version-history`).
 
-#### Scenario: Update title and content
-- **WHEN** an authenticated user PATCHes `/api/notes/:id` with `{ title, content }` on an own active note
-- **THEN** the system responds `200` with the updated `{ note }`, `updatedAt` is advanced, and `contentText` is re-derived from the new `content`
+#### Scenario: Update title and content captures a new version
+- **WHEN** an authenticated user PATCHes `/api/notes/:id` with `{ title, content }` on an own active note whose latest version is 2
+- **THEN** the system responds `200` with the updated `{ note }`, `updatedAt` is advanced, `contentText` is re-derived, and a new `NoteVersion` 3 is written (capturing the new title, content, and current `tagIds`) in the same transaction (FRS-8.1)
+
+#### Scenario: Tag-only update does not create a version
+- **WHEN** an authenticated user PATCHes `/api/notes/:id` with only `{ tagIds: ["tagB"] }` (no title/content change)
+- **THEN** the note's tag set is replaced with `tagB`, the response `tagIds` is `["tagB"]`, and **no new version is created** — the version count is unchanged (clarification 1)
+
+#### Scenario: No-op update does not create a version
+- **WHEN** an authenticated user PATCHes `/api/notes/:id` with a `title` / `content` identical to the stored values (or an empty effective change)
+- **THEN** no new version is created
+
+#### Scenario: Update changing both content and tags creates one version
+- **WHEN** an authenticated user PATCHes `{ content: <new doc>, tagIds: ["tagA"] }`
+- **THEN** exactly one new version is created capturing the new content and `tagIds` `["tagA"]` (not two)
 
 #### Scenario: Partial update leaves omitted fields unchanged
 - **WHEN** an authenticated user PATCHes `/api/notes/:id` with only `{ title }` (no `content`, no `tagIds`)
-- **THEN** the title is updated and the existing `content` / `contentText` **and existing tag associations** are preserved unchanged
+- **THEN** the title is updated, the existing `content` / `contentText` and existing tag associations are preserved, and a new version is created (title changed)
 
 #### Scenario: tagIds replaces the note's entire tag set
 - **WHEN** an authenticated user PATCHes `/api/notes/:id` with `{ tagIds: ["tagB"] }` on a note currently tagged `tagA` and `tagB`
@@ -128,19 +144,19 @@ The system SHALL allow an authenticated user to update the title, content, and/o
 
 #### Scenario: Empty tagIds detaches all tags
 - **WHEN** an authenticated user PATCHes `/api/notes/:id` with `{ tagIds: [] }`
-- **THEN** all of the note's tag associations are removed and the response `tagIds` is `[]`
+- **THEN** all of the note's tag associations are removed, the response `tagIds` is `[]`, and (tag-only change) no new version is created
 
 #### Scenario: Update with a foreign or unknown tag id rejected atomically
 - **WHEN** an authenticated user PATCHes `tagIds` containing an id that does not exist or belongs to another user
-- **THEN** the system responds `422` with `{ error: { code: "INVALID_TAG_IDS", … } }`, and neither the note's fields nor its existing associations are changed
+- **THEN** the system responds `422` with `{ error: { code: "INVALID_TAG_IDS", … } }`, and neither the note's fields, its associations, nor its versions change
 
 #### Scenario: Update a soft-deleted note rejected
 - **WHEN** an authenticated user PATCHes `/api/notes/:id` for one of their own notes whose `deletedAt` is set
-- **THEN** the system responds `422` with `{ error: { code: "NOTE_DELETED", … } }` and no change is made — the note must be restored first (FRS-4.3.3)
+- **THEN** the system responds `422` with `{ error: { code: "NOTE_DELETED", … } }`, and no change and no version are written (FRS-4.3.3)
 
 #### Scenario: Update a note owned by another user
 - **WHEN** an authenticated user PATCHes `/api/notes/:id` for a note owned by a different user
-- **THEN** the system responds `404` (no existence leak), not `403`
+- **THEN** the system responds `404` (no existence leak), not `403`, and no version is written
 
 #### Scenario: Update a non-existent note
 - **WHEN** an authenticated user PATCHes `/api/notes/:id` for an id that matches no note
@@ -148,7 +164,7 @@ The system SHALL allow an authenticated user to update the title, content, and/o
 
 #### Scenario: Malformed update body rejected
 - **WHEN** an authenticated user PATCHes an invalid body (e.g. `content` that is not a TipTap document, or `tagIds` that is not an array of strings)
-- **THEN** the system responds `400` with `fields[]` and no change is made
+- **THEN** the system responds `400` with `fields[]` and no change or version is written
 
 ### Requirement: Soft-delete a note
 The system SHALL allow an authenticated user to delete one of their own active notes. Deletion SHALL be a soft delete — `deletedAt` SHALL be set and the row SHALL never be physically removed within the recovery window. A soft-deleted note SHALL disappear from the default list and read.
