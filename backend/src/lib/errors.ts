@@ -46,8 +46,8 @@ export class ConflictError extends AppError {
 }
 
 export class GoneError extends AppError {
-  constructor(message = 'Gone') {
-    super(410, 'GONE', message)
+  constructor(message = 'Gone', code = 'GONE') {
+    super(410, code, message)
     this.name = 'GoneError'
   }
 }
