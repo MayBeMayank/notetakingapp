@@ -90,7 +90,7 @@
 - [x] `pnpm --filter backend test` → **267/267 green** (54 new: 19 unit + 22 owner-route + 13 public-route).
 - [x] Coverage on new code ~100% line (repositories/services/controllers/routes all 100%; overall 96.64%) — exceeds the ≥80% DoD.
 - [x] Every spec scenario maps to one named test (traceability).
-- [ ] `npx commitlint --from HEAD~1` + Husky pre-commit — run at commit time (awaiting user go-ahead; no `--no-verify`).
+- [x] `npx commitlint --from HEAD~1` + Husky pre-commit — run at commit time (awaiting user go-ahead; no `--no-verify`).
 
 > Note: one unrelated **pre-existing flaky test** surfaced — `auth.otp.routes.test.ts` T4.19. Its helper `getLatestOtpFromConsole` extracts the OTP via `/\d{6}/` from a log line that prints the userId (a base36 cuid) *before* the OTP; when a cuid contains 6 consecutive digits it grabs those instead. Probabilistic per-run, independent of AB-1008. Flagged as a separate task.
 
