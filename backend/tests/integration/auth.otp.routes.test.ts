@@ -34,13 +34,17 @@ async function forgotPassword(email = 'alice@example.com') {
 }
 
 async function getLatestOtpFromConsole(consoleSpy: ReturnType<typeof vi.spyOn>): Promise<string | null> {
-  const calls = consoleSpy.mock.calls
-  for (const args of calls) {
-    const msg = String(args[0])
-    const match = msg.match(/\d{6}/)
-    if (match) return match[0]
-  }
-  return null
+  // The OTP service logs exactly: `[OTP] Password reset code for user <cuid>: <otp>`.
+  // A cuid can itself contain a run of 6+ digits, so a bare `\d{6}` match would
+  // intermittently capture cuid digits instead of the code. Anchor the match to the
+  // trailing code (after the final ": ") on an [OTP]-marked line, and return the most
+  // recent one — deterministic regardless of the userId value.
+  const codes = consoleSpy.mock.calls
+    .map((args) => String(args[0]))
+    .filter((msg) => msg.includes('[OTP]'))
+    .map((msg) => msg.match(/:\s*(\d{6})\s*$/)?.[1])
+    .filter((code): code is string => code !== undefined)
+  return codes.at(-1) ?? null
 }
 
 // ── POST /api/auth/forgot-password ────────────────────────────────────────────
