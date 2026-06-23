@@ -27,7 +27,9 @@ const DEFAULT_SORT: NoteSortField = 'updatedAt'
 const DEFAULT_ORDER: NoteSortOrder = 'desc'
 const DEFAULT_STATUS: NoteListStatus = 'active'
 
-function toNoteResponse(note: NoteWithTagIds): NoteResponse {
+// Exported for reuse by versions.service (restore returns an identical `{ note }`
+// shape). Pure mapper — no behaviour change.
+export function toNoteResponse(note: NoteWithTagIds): NoteResponse {
   return {
     id: note.id,
     title: note.title,
@@ -89,16 +91,27 @@ export async function updateNote(
     tagIds?: string[]
   } = {}
 
-  if (input.title !== undefined) updateData.title = input.title
+  // FRS-8.1 / ADR-003 §3 / clarification 1: snapshot a new version only when the
+  // title or content actually changes. A tag-only or no-op PATCH writes no version.
+  let titleChanged = false
+  let contentChanged = false
+
+  if (input.title !== undefined) {
+    updateData.title = input.title
+    titleChanged = input.title !== note.title
+  }
   if (input.content !== undefined) {
     updateData.contentJson = input.content as Record<string, unknown>
     updateData.contentText = deriveContentText(input.content)
+    contentChanged = true
   }
   if (input.tagIds !== undefined) {
     updateData.tagIds = await assertOwnedTags(userId, input.tagIds)
   }
 
-  const updated = await notesRepo.updateNote(userId, id, updateData)
+  const updated = await notesRepo.updateNote(userId, id, updateData, {
+    snapshot: titleChanged || contentChanged,
+  })
   return toNoteResponse(updated)
 }
 
