@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js'
 import { Prisma } from '@prisma/client'
 import type { Note } from '@prisma/client'
+import { snapshotTx } from './versions.repository.js'
 import type {
   NoteSortField,
   NoteSortOrder,
@@ -18,17 +19,30 @@ export async function createNote(data: {
   contentText: string
   tagIds?: string[]
 }): Promise<NoteWithTagIds> {
-  return prisma.note.create({
-    data: {
-      userId: data.userId,
-      title: data.title,
-      contentJson: data.contentJson as Prisma.InputJsonValue,
-      contentText: data.contentText,
-      ...(data.tagIds && data.tagIds.length > 0
-        ? { tags: { create: data.tagIds.map((tagId) => ({ tagId })) } }
-        : {}),
-    },
-    include: TAG_IDS_INCLUDE,
+  // Create the note and capture its initial version (v1) atomically (FRS-8.1).
+  return prisma.$transaction(async (tx) => {
+    const note = await tx.note.create({
+      data: {
+        userId: data.userId,
+        title: data.title,
+        contentJson: data.contentJson as Prisma.InputJsonValue,
+        contentText: data.contentText,
+        ...(data.tagIds && data.tagIds.length > 0
+          ? { tags: { create: data.tagIds.map((tagId) => ({ tagId })) } }
+          : {}),
+      },
+      include: TAG_IDS_INCLUDE,
+    })
+
+    await snapshotTx(tx, {
+      noteId: note.id,
+      title: note.title,
+      contentJson: note.contentJson as Record<string, unknown>,
+      contentText: note.contentText,
+      tagIds: note.tags.map((t) => t.tagId),
+    })
+
+    return note
   })
 }
 
@@ -48,24 +62,42 @@ export async function updateNote(
     contentText?: string
     tagIds?: string[]
   },
+  opts: { snapshot: boolean },
 ): Promise<NoteWithTagIds> {
   const { tagIds, ...fields } = data
-  return prisma.note.update({
-    where: { id, userId },
-    data: {
-      ...(fields.title !== undefined && { title: fields.title }),
-      ...(fields.contentJson !== undefined && {
-        contentJson: fields.contentJson as Prisma.InputJsonValue,
-      }),
-      ...(fields.contentText !== undefined && { contentText: fields.contentText }),
-      ...(tagIds !== undefined && {
-        tags: {
-          deleteMany: {},
-          ...(tagIds.length > 0 ? { create: tagIds.map((tagId) => ({ tagId })) } : {}),
-        },
-      }),
-    },
-    include: TAG_IDS_INCLUDE,
+  // Update the note and (when title/content changed) capture a new version
+  // atomically (FRS-8.1 / ADR-003 §3). The snapshot mirrors the persisted
+  // post-update state, including the note's resulting tag associations.
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.note.update({
+      where: { id, userId },
+      data: {
+        ...(fields.title !== undefined && { title: fields.title }),
+        ...(fields.contentJson !== undefined && {
+          contentJson: fields.contentJson as Prisma.InputJsonValue,
+        }),
+        ...(fields.contentText !== undefined && { contentText: fields.contentText }),
+        ...(tagIds !== undefined && {
+          tags: {
+            deleteMany: {},
+            ...(tagIds.length > 0 ? { create: tagIds.map((tagId) => ({ tagId })) } : {}),
+          },
+        }),
+      },
+      include: TAG_IDS_INCLUDE,
+    })
+
+    if (opts.snapshot) {
+      await snapshotTx(tx, {
+        noteId: updated.id,
+        title: updated.title,
+        contentJson: updated.contentJson as Record<string, unknown>,
+        contentText: updated.contentText,
+        tagIds: updated.tags.map((t) => t.tagId),
+      })
+    }
+
+    return updated
   })
 }
 

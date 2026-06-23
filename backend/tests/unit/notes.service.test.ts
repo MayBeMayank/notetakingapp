@@ -398,3 +398,29 @@ describe('listNotes — AB-1005 sort/filter/status', () => {
     )
   })
 })
+
+// ── updateNote version-snapshot decision (AB-1009 / FRS-8.1 / clarification 1) ──
+// fakeNote.title === 'My Note'. The 4th repo arg is { snapshot } — a version is
+// captured only when title or content actually changes.
+
+describe('updateNote — snapshot trigger', () => {
+  it('content change → repo called with { snapshot: true }', async () => {
+    await updateNote('user-1', 'note-1', { content: { type: 'doc', content: [] } })
+    expect(mockedRepo.updateNote.mock.calls[0][3]).toEqual({ snapshot: true })
+  })
+
+  it('title change (differs from stored) → { snapshot: true }', async () => {
+    await updateNote('user-1', 'note-1', { title: 'Different' })
+    expect(mockedRepo.updateNote.mock.calls[0][3]).toEqual({ snapshot: true })
+  })
+
+  it('no-op title (same as stored) → { snapshot: false }', async () => {
+    await updateNote('user-1', 'note-1', { title: 'My Note' })
+    expect(mockedRepo.updateNote.mock.calls[0][3]).toEqual({ snapshot: false })
+  })
+
+  it('tag-only update → { snapshot: false }', async () => {
+    await updateNote('user-1', 'note-1', { tagIds: [] })
+    expect(mockedRepo.updateNote.mock.calls[0][3]).toEqual({ snapshot: false })
+  })
+})

@@ -2,6 +2,7 @@ import { Router, type Router as RouterType } from 'express'
 import { validateBody, validateQuery } from '../middleware/validate.middleware.js'
 import * as notesController from '../controllers/notes.controller.js'
 import * as sharesController from '../controllers/shares.controller.js'
+import { versionsRouter } from './versions.routes.js'
 import {
   CreateNoteSchema,
   UpdateNoteSchema,
@@ -20,3 +21,6 @@ notesRouter.post('/:id/restore', notesController.restore)
 
 // Note-scoped share creation (FRS-7.1) — resolves as POST /api/notes/:id/shares.
 notesRouter.post('/:id/shares', validateBody(CreateShareSchema), sharesController.create)
+
+// Version history sub-resource (AB-1009): /api/notes/:id/versions[...]
+notesRouter.use('/:id/versions', versionsRouter)
