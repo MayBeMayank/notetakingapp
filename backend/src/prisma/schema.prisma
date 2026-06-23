@@ -102,6 +102,7 @@ model NoteVersion {
   title         String
   contentJson   Json
   contentText   String
+  tagIds        String[] @default([]) // denormalized snapshot of the note's tag ids at this version (ADR-003); not FK-constrained so it survives tag deletion (FRS-5.5)
   createdAt     DateTime @default(now())
 
   note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
