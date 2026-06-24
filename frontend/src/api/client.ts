@@ -49,6 +49,23 @@ async function toApiError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, code, message, fields)
 }
 
+// App-registered handler invoked when an authenticated request cannot be
+// recovered (refresh failed) and the session has already been cleared. The app
+// registers router navigation; without a handler we fall back to a hard redirect.
+let unauthorizedHandler: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler
+}
+
+function notifyUnauthorized(): void {
+  if (unauthorizedHandler) {
+    unauthorizedHandler()
+  } else if (typeof window !== 'undefined') {
+    window.location.assign('/login')
+  }
+}
+
 // Single-flight refresh: concurrent 401s share one /auth/refresh call.
 let refreshPromise: Promise<string> | null = null
 
@@ -118,9 +135,11 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
       const newToken = await refreshOnce()
       res = await send(newToken)
     } catch {
-      // Refresh failed (expired/revoked/unknown): drop the session. The route guard
-      // observes the cleared store and redirects to /login.
+      // Refresh failed (expired/revoked/unknown): drop the session and actively
+      // send the user to /login via the registered handler (independent of any
+      // mounted route guard; falls back to a hard redirect when unregistered).
       useAuthStore.getState().clear()
+      notifyUnauthorized()
       throw new ApiError(401, 'UNAUTHORIZED', 'Session expired')
     }
   }

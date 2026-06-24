@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiFetch } from './client'
+import { ApiError, apiFetch, setUnauthorizedHandler } from './client'
 import { REFRESH_KEY, getStoredRefreshToken, useAuthStore } from '@/stores/auth.store'
 import { jsonResponse } from '@/test/utils'
 
@@ -20,6 +20,7 @@ describe('frontend-app-shell › Authenticated API client', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    setUnauthorizedHandler(null)
   })
 
   it('attaches the Bearer access token on protected calls', async () => {
@@ -85,10 +86,15 @@ describe('frontend-app-shell › Authenticated API client', () => {
       }) as unknown as typeof fetch,
     )
 
+    const onUnauthorized = vi.fn()
+    setUnauthorizedHandler(onUnauthorized)
+
     await expect(apiFetch('/notes')).rejects.toBeInstanceOf(ApiError)
     expect(useAuthStore.getState().status).toBe('anonymous')
     expect(useAuthStore.getState().accessToken).toBeNull()
     expect(getStoredRefreshToken()).toBeNull()
+    // Drift fix: client actively triggers the /login redirect, not just clears state.
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
   })
 
   it('parses the standard error envelope into code/message/fields', async () => {

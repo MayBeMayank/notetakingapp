@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { useEffect, type ReactNode } from 'react'
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth.store'
+import { setUnauthorizedHandler } from '@/api/client'
 import { useBootstrapSession } from '@/features/auth/useBootstrapSession'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import LoginPage from '@/pages/LoginPage'
@@ -27,7 +28,15 @@ function PublicOnlyRoute({ children }: { children: ReactNode }) {
 
 export default function App() {
   useBootstrapSession()
+  const navigate = useNavigate()
   const status = useAuthStore((s) => s.status)
+
+  // Let the API client redirect to /login when a session can't be refreshed,
+  // independent of which route is mounted.
+  useEffect(() => {
+    setUnauthorizedHandler(() => navigate('/login', { replace: true }))
+    return () => setUnauthorizedHandler(null)
+  }, [navigate])
 
   return (
     <Routes>
