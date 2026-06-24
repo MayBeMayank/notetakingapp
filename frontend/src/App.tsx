@@ -8,7 +8,8 @@ import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/ResetPasswordPage'
-import HomePage from '@/pages/HomePage'
+import NotesPage from '@/pages/NotesPage'
+import NoteEditorPlaceholderPage from '@/pages/NoteEditorPlaceholderPage'
 
 /** Keeps authenticated users off the auth screens; waits during rehydration. */
 function PublicOnlyRoute({ children }: { children: ReactNode }) {
@@ -62,10 +63,12 @@ export default function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <HomePage />
+            <NotesPage />
           </ProtectedRoute>
         }
       />
+      <Route path="/notes/new" element={<ProtectedRoute><NoteEditorPlaceholderPage /></ProtectedRoute>} />
+      <Route path="/notes/:id" element={<ProtectedRoute><NoteEditorPlaceholderPage /></ProtectedRoute>} />
       <Route
         path="*"
         element={<Navigate to={status === 'authenticated' ? '/' : '/login'} replace />}
