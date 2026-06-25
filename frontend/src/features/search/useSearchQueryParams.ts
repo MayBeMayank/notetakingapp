@@ -16,7 +16,7 @@ export function useSearchQueryParams(): [SearchViewState, (patch: Partial<Search
       if (patch.q !== undefined && patch.page === undefined) {
         next.page = 1
       }
-      setSearchParams(serializeSearchView(next), { replace: true })
+      setSearchParams(serializeSearchView(next))
     },
     [searchParams, setSearchParams],
   )

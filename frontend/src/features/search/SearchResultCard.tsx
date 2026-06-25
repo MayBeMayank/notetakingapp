@@ -6,6 +6,19 @@ interface Props {
   item: SearchResultItem
 }
 
+function renderSnippet(html: string): React.ReactNode[] {
+  const parts = html.split(/(<mark>|<\/mark>)/g)
+  const nodes: React.ReactNode[] = []
+  let inMark = false
+  for (const part of parts) {
+    if (part === '<mark>') { inMark = true; continue }
+    if (part === '</mark>') { inMark = false; continue }
+    if (part === '') continue
+    nodes.push(inMark ? <mark key={nodes.length}>{part}</mark> : part)
+  }
+  return nodes
+}
+
 export function SearchResultCard({ item }: Props) {
   const hasSnippet = item.snippet.trim().length > 0
 
@@ -17,10 +30,9 @@ export function SearchResultCard({ item }: Props) {
         </div>
         {hasSnippet && (
           <CardContent className="pt-0 pb-4">
-            <p
-              className="text-sm text-muted-foreground line-clamp-3"
-              dangerouslySetInnerHTML={{ __html: item.snippet }}
-            />
+            <p className="text-sm text-muted-foreground line-clamp-3">
+              {renderSnippet(item.snippet)}
+            </p>
           </CardContent>
         )}
       </Link>
