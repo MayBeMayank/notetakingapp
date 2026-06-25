@@ -81,6 +81,19 @@ describe('frontend-app-shell › Application routing', () => {
     await screen.findByText('Tags')
   })
 
+  it('/notes/:id redirects to list on 404', async () => {
+    useAuthStore.setState({ status: 'authenticated', user: { id: 'u', email: 'x@y.com' }, accessToken: 'tok' })
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const { jsonResponse } = await import('@/test/utils')
+      if ((url as string).includes('/api/notes/not-found')) return jsonResponse(404, { error: { code: 'NOT_FOUND', message: 'Note not found' } })
+      if ((url as string).includes('/api/notes')) return jsonResponse(200, { data: [], page: 1, limit: 20, total: 0 })
+      if ((url as string).includes('/api/tags')) return jsonResponse(200, [])
+      return jsonResponse(404, {})
+    }))
+    renderWithProviders(<App />, { route: '/notes/not-found' })
+    await screen.findByRole('heading', { name: 'Your notes' })
+  })
+
   it('/notes/:id renders editor for authenticated user', async () => {
     useAuthStore.setState({ status: 'authenticated', user: { id: 'u', email: 'x@y.com' }, accessToken: 'tok' })
     const note = { id: 'abc', title: 'My Note', content: { type: 'doc', content: [] }, tagIds: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }

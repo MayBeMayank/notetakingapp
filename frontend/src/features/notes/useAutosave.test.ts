@@ -363,4 +363,80 @@ describe('useAutosave', () => {
     )
     expect(patchCalls.length).toBe(0)
   })
+
+  // -------------------------------------------------------------------------
+  // 10. 5xx response treated as recoverable (non-fatal)
+  // -------------------------------------------------------------------------
+  it('treats 5xx response as recoverable and sets error state', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { code: 'SERVER_ERROR', message: 'Internal Server Error' } }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const opts = makeOptions()
+    const { result, rerender } = renderHook(
+      (props: UseAutosaveOptions) => useAutosave(props),
+      { initialProps: opts, wrapper: Providers },
+    )
+
+    rerender({ ...opts, title: '5xx error' })
+    await tickAndFlush(2000)
+
+    expect(result.current.saveState).toBe('error')
+  })
+
+  // -------------------------------------------------------------------------
+  // 11. successful retry after recoverable error transitions back to saved
+  // -------------------------------------------------------------------------
+  it('successful retry after error transitions saveState back to saved', async () => {
+    const makeOkResponse = () =>
+      new Response(
+        JSON.stringify({
+          note: {
+            id: 'note-1',
+            title: 'Retried',
+            contentJson: {},
+            contentText: '',
+            tagIds: [],
+            deletedAt: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: { code: 'SERVER_ERROR', message: 'fail' } }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+      .mockImplementation(() => Promise.resolve(makeOkResponse()))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const opts = makeOptions()
+    const { result, rerender } = renderHook(
+      (props: UseAutosaveOptions) => useAutosave(props),
+      { initialProps: opts, wrapper: Providers },
+    )
+
+    // First change → 500 error
+    rerender({ ...opts, title: 'Will fail' })
+    await tickAndFlush(2000)
+    expect(result.current.saveState).toBe('error')
+
+    // Second change → re-arms debounce to pending
+    act(() => { rerender({ ...opts, title: 'Will succeed' }) })
+    expect(result.current.saveState).toBe('pending')
+
+    // Debounce fires → 200 success → back to saved
+    await tickAndFlush(2000)
+    expect(result.current.saveState).toBe('saved')
+  })
 })
