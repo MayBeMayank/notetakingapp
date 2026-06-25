@@ -9,6 +9,7 @@ import { TagPicker } from './TagPicker'
 import { SaveStatusIndicator } from './SaveStatusIndicator'
 import { useAutosave } from './useAutosave'
 import { Button } from '@/components/ui/button'
+import { ShareButton } from '@/features/share/ShareButton'
 
 interface NoteEditorProps {
   note: NoteResponse
@@ -60,6 +61,7 @@ export function NoteEditor({ note }: NoteEditorProps) {
           className="flex-1"
         />
         <SaveStatusIndicator state={saveState} />
+        <ShareButton noteId={note.id} />
       </div>
 
       {/* Toolbar */}
