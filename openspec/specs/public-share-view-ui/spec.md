@@ -1,12 +1,8 @@
-# Delta Spec — public-share-view-ui (AB-1014)
+# public-share-view-ui Specification
 
-Consumes: `GET /api/public/notes/:token` (AB-1008, SDS §6.2 / §8)
-FRS coverage: §7.3, §7.6 (view-side), §7.8
-
----
-
-## ADDED Requirements
-
+## Purpose
+TBD - created by archiving change ab-1014. Update Purpose after archive.
+## Requirements
 ### Requirement: Public viewer route
 
 The application SHALL expose an **unauthenticated** route at `/s/:token` that renders
@@ -71,17 +67,17 @@ than an authenticated error or a crash. (FRS-7.3, view-side)
 
 ### Requirement: Gone link state
 
-When the link is revoked, expired, or its note has been soft-deleted, the backend
-responds `410`; the page SHALL show a "link no longer available" state. (FRS-7.5,
+The page SHALL show a "link no longer available" state when the link is revoked,
+expired, or its note has been soft-deleted (backend responds `410`). (FRS-7.5,
 FRS-7.6, view-side)
 
 #### Scenario: revoked or expired link
 - **WHEN** `GET /api/public/notes/:token` responds `410`
-- **THEN** the page shows a "This share link is no longer available" message and no note content
+- **THEN** the page SHALL show a "This share link is no longer available" message and no note content
 
 #### Scenario: note behind the link was soft-deleted
 - **WHEN** the underlying note is soft-deleted and the public fetch responds `410`
-- **THEN** the same "no longer available" state is shown — the viewer is never told the note exists or was deleted (FRS-7.6, FRS-7.8)
+- **THEN** the page SHALL show the same "no longer available" state — the viewer is never told the note exists or was deleted (FRS-7.6, FRS-7.8)
 
 ---
 
@@ -92,3 +88,4 @@ While the public note is being fetched, a loading state SHALL be shown. (FRS-9.5
 #### Scenario: fetch in flight
 - **WHEN** the public note request has been issued and not yet resolved
 - **THEN** a loading indicator is shown in place of the note
+

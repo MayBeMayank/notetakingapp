@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { app } from './app.js'
 
 if (!process.env['JWT_SECRET']) {

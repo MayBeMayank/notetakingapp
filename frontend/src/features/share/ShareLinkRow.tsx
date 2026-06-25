@@ -40,8 +40,8 @@ export function ShareLinkRow({ share }: ShareLinkRowProps) {
     revoke.mutate(share.id, {
       onSuccess: () => setConfirmOpen(false),
       onError: (err) => {
-        // 404 = already gone — treat as success (row will be removed by cache invalidation)
         if (err.status === 404) {
+          // 404 = already gone; useRevokeShare invalidates the cache so the row disappears
           setConfirmOpen(false)
           return
         }

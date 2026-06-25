@@ -71,17 +71,17 @@ strictly-future ISO 8601 datetime at submit; "Never" sends `expiresAt: null`.
 
 ### Requirement: Generate rejected on a soft-deleted note
 
-When the backend rejects share creation because the target note is soft-deleted
-(`422`), the modal SHALL surface that as a user-readable message rather than a
-generic failure. (FRS-7.6, create-side)
+The modal SHALL surface a user-readable message when the backend rejects share creation
+because the target note is soft-deleted (`422`), rather than showing a generic failure.
+(FRS-7.6, create-side)
 
 #### Scenario: note soft-deleted between open and generate
 - **WHEN** the user clicks Generate and the backend responds `422` with code `NOTE_DELETED`
-- **THEN** an inline error such as "This note is in the trash — restore it before sharing" is shown and no link is added to the list
+- **THEN** the modal SHALL show an inline error such as "This note is in the trash — restore it before sharing" and no link is added to the list
 
 #### Scenario: note not found or not owned
 - **WHEN** the generate request responds `404`
-- **THEN** an error message is shown and no link is added (no existence leak is implied by the UI)
+- **THEN** the modal SHALL show an error message and no link is added (no existence leak is implied by the UI)
 
 ---
 

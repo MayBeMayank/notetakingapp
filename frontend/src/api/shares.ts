@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ApiError, apiFetch } from '@/api/client'
-import type { CreateShareInput, ShareEnvelope } from '@note-app/shared/schemas/shares'
+import {
+  PublicNoteViewSchema,
+  type CreateShareInput,
+  type PublicNoteView,
+  type ShareEnvelope,
+} from '@note-app/shared/schemas/shares'
 
 export const SHARES_QUERY_KEY = ['shares'] as const
 
@@ -16,12 +21,6 @@ export interface ShareLinkItem {
   expiresAt: string | null
   viewCount: number
   createdAt: string
-}
-
-/** Public note payload from GET /api/public/notes/:token */
-export interface PublicNotePayload {
-  title: string
-  content: unknown
 }
 
 /**
@@ -55,17 +54,28 @@ export function useRevokeShare() {
     mutationFn: (shareId) =>
       apiFetch<void>(`/shares/${shareId}`, { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: SHARES_QUERY_KEY }),
+    onError: (err) => {
+      // 404 = link already gone — the desired end-state (row removed) is reached
+      // by invalidating the cache so the stale entry disappears from the list.
+      if (err.status === 404) {
+        void queryClient.invalidateQueries({ queryKey: SHARES_QUERY_KEY })
+      }
+    },
   })
 }
 
 /**
  * Fetch the public view of a shared note without authentication (FRS-7.3).
  * retry: false so 404/410 surface immediately without retrying.
+ * Response is validated against PublicNoteViewSchema to enforce the contract.
  */
 export function usePublicNote(token: string) {
-  return useQuery<PublicNotePayload, ApiError>({
+  return useQuery<PublicNoteView, ApiError>({
     queryKey: ['public-note', token],
-    queryFn: () => apiFetch<PublicNotePayload>(`/public/notes/${token}`, { auth: false }),
+    queryFn: async () => {
+      const raw = await apiFetch<unknown>(`/public/notes/${token}`, { auth: false })
+      return PublicNoteViewSchema.parse(raw)
+    },
     retry: false,
     staleTime: 60_000,
   })
