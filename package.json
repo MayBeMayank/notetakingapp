@@ -15,5 +15,8 @@
     "husky": "9.1.7",
     "typescript": "5.9.3",
     "typescript-eslint": "8.61.1"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
   }
 }

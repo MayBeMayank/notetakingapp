@@ -1,9 +1,6 @@
 import jwt from 'jsonwebtoken'
 
-if (!process.env['JWT_SECRET']) {
-  throw new Error('JWT_SECRET environment variable is not set')
-}
-const JWT_SECRET: string = process.env['JWT_SECRET']
+const JWT_SECRET: string = process.env['JWT_SECRET']!
 const ACCESS_TOKEN_TTL = process.env['ACCESS_TOKEN_TTL'] ?? '15m'
 
 export function signAccessToken(userId: string): string {

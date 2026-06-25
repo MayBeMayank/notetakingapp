@@ -2,6 +2,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Link } from 'react-router-dom'
 import { DeleteNoteButton } from './DeleteNoteButton'
 import { RestoreNoteButton } from './RestoreNoteButton'
+import { ShareButton } from '@/features/share/ShareButton'
 import type { NoteListItem } from '@/api/notes'
 import type { TagOption } from '@/api/tags'
 
@@ -49,7 +50,8 @@ export function NoteCard({ note, tags, status }: NoteCardProps) {
           {header}
           {body}
         </Link>
-        <CardFooter className="pt-0">
+        <CardFooter className="flex items-center gap-2 pt-0">
+          <ShareButton noteId={note.id} />
           <DeleteNoteButton noteId={note.id} noteTitle={note.title} />
         </CardFooter>
       </Card>
