@@ -62,4 +62,19 @@ describe('notes-list-ui › tag filter', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Clear' }))
     expect(cb).toHaveBeenCalledWith([])
   })
+
+  it('selecting two tags passes both IDs to onTagsChange (OR filter)', async () => {
+    const cb = vi.fn()
+    const { rerender } = render(
+      <TagFilter tags={makeTags()} selectedTags={[]} onTagsChange={cb} />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Work' }))
+    expect(cb).toHaveBeenCalledWith(['t1'])
+
+    rerender(
+      <TagFilter tags={makeTags()} selectedTags={['t1']} onTagsChange={cb} />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Personal' }))
+    expect(cb).toHaveBeenCalledWith(['t1', 't2'])
+  })
 })

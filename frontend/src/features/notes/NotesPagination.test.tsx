@@ -42,4 +42,12 @@ describe('notes-list-ui › pagination', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Previous' }))
     expect(cb).toHaveBeenCalledWith(1)
   })
+
+  it('page change callback carries only the new page — sort retention is the caller\'s responsibility', async () => {
+    const cb = vi.fn()
+    render(<NotesPagination page={1} total={60} limit={20} onPageChange={cb} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(cb).toHaveBeenCalledTimes(1)
+    expect(cb).toHaveBeenCalledWith(2)
+  })
 })

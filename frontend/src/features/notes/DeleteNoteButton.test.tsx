@@ -68,4 +68,13 @@ describe('notes-list-ui › soft-delete', () => {
 
     expect(screen.getByText(/Failed to delete/)).toBeInTheDocument()
   })
+
+  it('Delete button remains visible and usable after a failure — no false-deleted UI', () => {
+    mockMutationState.isError = true
+    renderWithProviders(<DeleteNoteButton noteId="n1" noteTitle="My note" />)
+
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).not.toBeDisabled()
+    expect(screen.getByText(/Failed to delete/)).toBeInTheDocument()
+  })
 })
