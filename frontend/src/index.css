@@ -47,3 +47,10 @@ body {
   margin: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
+
+mark {
+  background-color: hsl(var(--primary) / 0.15);
+  border-radius: 2px;
+  padding: 0 2px;
+  color: inherit;
+}
