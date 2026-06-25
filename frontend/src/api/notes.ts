@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ApiError, apiFetch } from '@/api/client'
 import type { NotesViewState } from '@/features/notes/notesQuery'
+import type {
+  CreateNoteInput,
+  UpdateNoteInput,
+  NoteEnvelope,
+} from '@note-app/shared/schemas/notes'
+
+// ── List hooks (AB-1011) ─────────────────────────────────────────────────────
 
 /**
  * Read-only note shape rendered by the list. Date fields are `string` (ISO over
@@ -62,5 +69,36 @@ export function useRestoreNote() {
   return useMutation<{ note: NoteListItem }, ApiError, string>({
     mutationFn: (id) => apiFetch<{ note: NoteListItem }>(`/notes/${id}/restore`, { method: 'POST' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: NOTES_QUERY_KEY }),
+  })
+}
+
+// ── Editor hooks (AB-1012) ───────────────────────────────────────────────────
+
+/** Create a new empty note and return its full envelope (FRS-4.1). */
+export function useCreateNote() {
+  const queryClient = useQueryClient()
+  return useMutation<NoteEnvelope, ApiError, CreateNoteInput>({
+    mutationFn: (input) => apiFetch<NoteEnvelope>('/notes', { method: 'POST', body: input }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: NOTES_QUERY_KEY }),
+  })
+}
+
+/** Fetch a single note by id for the editor (FRS-4.2). retry:false so 404 surfaces immediately. */
+export function useNote(id: string) {
+  return useQuery<NoteEnvelope, ApiError>({
+    queryKey: [...NOTES_QUERY_KEY, id],
+    queryFn: () => apiFetch<NoteEnvelope>(`/notes/${id}`),
+    retry: false,
+  })
+}
+
+/** Autosave a note (FRS-4.3): PUT with changed fields; invalidates the per-note cache entry. */
+export function useUpdateNote() {
+  const queryClient = useQueryClient()
+  return useMutation<NoteEnvelope, ApiError, { id: string } & UpdateNoteInput>({
+    mutationFn: ({ id, ...input }) =>
+      apiFetch<NoteEnvelope>(`/notes/${id}`, { method: 'PATCH', body: input }),
+    onSuccess: (_data, { id }) =>
+      queryClient.invalidateQueries({ queryKey: [...NOTES_QUERY_KEY, id] }),
   })
 }
