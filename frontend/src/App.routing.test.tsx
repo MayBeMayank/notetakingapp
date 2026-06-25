@@ -67,27 +67,43 @@ describe('frontend-app-shell › Application routing', () => {
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
 
-  it('/notes/new renders placeholder for authenticated user', async () => {
+  it('/notes/new creates note and renders editor for authenticated user', async () => {
     useAuthStore.setState({ status: 'authenticated', user: { id: 'u', email: 'x@y.com' }, accessToken: 'tok' })
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    const note = { id: 'n1', title: '', content: { type: 'doc', content: [] }, tagIds: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    vi.stubGlobal('fetch', vi.fn(async (url: string, opts?: RequestInit) => {
       const { jsonResponse } = await import('@/test/utils')
+      if ((opts as RequestInit)?.method === 'POST' && (url as string).includes('/api/notes')) return jsonResponse(201, { note })
+      if ((url as string).includes('/api/notes/n1')) return jsonResponse(200, { note })
       if ((url as string).includes('/api/tags')) return jsonResponse(200, [])
-      if ((url as string).includes('/api/notes')) return jsonResponse(200, { data: [], page: 1, limit: 20, total: 0 })
       return jsonResponse(404, {})
     }))
     renderWithProviders(<App />, { route: '/notes/new' })
-    await screen.findByText('Editor coming in AB-1012.')
+    await screen.findByText('Tags')
   })
 
-  it('/notes/:id renders placeholder for authenticated user', async () => {
+  it('/notes/:id redirects to list on 404', async () => {
     useAuthStore.setState({ status: 'authenticated', user: { id: 'u', email: 'x@y.com' }, accessToken: 'tok' })
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       const { jsonResponse } = await import('@/test/utils')
-      if ((url as string).includes('/api/tags')) return jsonResponse(200, [])
+      if ((url as string).includes('/api/notes/not-found')) return jsonResponse(404, { error: { code: 'NOT_FOUND', message: 'Note not found' } })
       if ((url as string).includes('/api/notes')) return jsonResponse(200, { data: [], page: 1, limit: 20, total: 0 })
+      if ((url as string).includes('/api/tags')) return jsonResponse(200, [])
+      return jsonResponse(404, {})
+    }))
+    renderWithProviders(<App />, { route: '/notes/not-found' })
+    await screen.findByRole('heading', { name: 'Your notes' })
+  })
+
+  it('/notes/:id renders editor for authenticated user', async () => {
+    useAuthStore.setState({ status: 'authenticated', user: { id: 'u', email: 'x@y.com' }, accessToken: 'tok' })
+    const note = { id: 'abc', title: 'My Note', content: { type: 'doc', content: [] }, tagIds: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const { jsonResponse } = await import('@/test/utils')
+      if ((url as string).includes('/api/notes/abc')) return jsonResponse(200, { note })
+      if ((url as string).includes('/api/tags')) return jsonResponse(200, [])
       return jsonResponse(404, {})
     }))
     renderWithProviders(<App />, { route: '/notes/abc' })
-    await screen.findByText('Editor coming in AB-1012.')
+    await screen.findByText('Tags')
   })
 })

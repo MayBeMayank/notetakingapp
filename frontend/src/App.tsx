@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/auth.store'
 import { setUnauthorizedHandler } from '@/api/client'
 import { useBootstrapSession } from '@/features/auth/useBootstrapSession'
@@ -9,7 +10,8 @@ import RegisterPage from '@/pages/RegisterPage'
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/ResetPasswordPage'
 import NotesPage from '@/pages/NotesPage'
-import NoteEditorPlaceholderPage from '@/pages/NoteEditorPlaceholderPage'
+import NewNotePage from '@/pages/NewNotePage'
+import NoteEditorPage from '@/pages/NoteEditorPage'
 
 /** Keeps authenticated users off the auth screens; waits during rehydration. */
 function PublicOnlyRoute({ children }: { children: ReactNode }) {
@@ -40,7 +42,9 @@ export default function App() {
   }, [navigate])
 
   return (
-    <Routes>
+    <>
+      <Toaster position="bottom-right" richColors />
+      <Routes>
       <Route
         path="/login"
         element={
@@ -67,12 +71,13 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/notes/new" element={<ProtectedRoute><NoteEditorPlaceholderPage /></ProtectedRoute>} />
-      <Route path="/notes/:id" element={<ProtectedRoute><NoteEditorPlaceholderPage /></ProtectedRoute>} />
+      <Route path="/notes/new" element={<ProtectedRoute><NewNotePage /></ProtectedRoute>} />
+      <Route path="/notes/:id" element={<ProtectedRoute><NoteEditorPage /></ProtectedRoute>} />
       <Route
         path="*"
         element={<Navigate to={status === 'authenticated' ? '/' : '/login'} replace />}
       />
     </Routes>
+    </>
   )
 }

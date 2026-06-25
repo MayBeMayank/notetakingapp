@@ -21,5 +21,6 @@ export function useTags() {
   return useQuery<TagOption[], ApiError>({
     queryKey: TAGS_QUERY_KEY,
     queryFn: () => apiFetch<TagOption[]>('/tags'),
+    staleTime: 30_000,
   })
 }
