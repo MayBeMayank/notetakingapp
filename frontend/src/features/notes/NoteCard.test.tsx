@@ -11,6 +11,12 @@ vi.mock('@/api/notes', () => ({
 
 vi.mock('@/api/client', () => ({}))
 
+vi.mock('@/features/share/ShareButton', () => ({
+  ShareButton: ({ noteId }: { noteId: string }) => (
+    <button aria-label={`Share ${noteId}`}>Share</button>
+  ),
+}))
+
 const makeNote = (overrides = {}) => ({
   id: 'n1',
   title: 'Test',
@@ -59,5 +65,15 @@ describe('notes-list-ui › card', () => {
     renderWithProviders(<NoteCard note={makeNote()} tags={emptyTags} status="trashed" />)
     expect(screen.getByRole('button', { name: /Restore/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Delete/ })).toBeNull()
+  })
+
+  it('active card shows Share button', () => {
+    renderWithProviders(<NoteCard note={makeNote()} tags={emptyTags} status="active" />)
+    expect(screen.getByRole('button', { name: /Share/i })).toBeInTheDocument()
+  })
+
+  it('trashed card does not show Share button', () => {
+    renderWithProviders(<NoteCard note={makeNote()} tags={emptyTags} status="trashed" />)
+    expect(screen.queryByRole('button', { name: /Share/i })).toBeNull()
   })
 })
